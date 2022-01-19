@@ -5,6 +5,8 @@ Disclaimer: This is a work in progress, and as such the majority of it
 will be subject to drastic changes. Herein is simply an outline on which
 to build.
 
+Trauma finns i indien \[[1](#ref-Hi)\]
+
 ## Introduction
 
 Background
@@ -74,3 +76,15 @@ You can also embed plots, for example:
 
 Note that the `echo = FALSE` parameter was added to the code chunk to
 prevent printing of the R code that generated the plot.
+
+<div id="refs" class="references csl-bib-body">
+
+<div id="ref-Hi" class="csl-entry">
+
+1\. Kumar V, Khajanchi M, Raykar NP, Gerdin M, Roy N. Waiting at the
+hospital door: A prospective, multicentre assessment of third delay in
+four tertiary hospitals in india. The Lancet. 2015;385:S24.
+
+</div>
+
+</div>
