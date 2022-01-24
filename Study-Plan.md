@@ -8,8 +8,8 @@ Incidence of Opportunities for Improvement - Study Plan
 Defined as physical injury and the body’s associated response
 \[[1](#ref-Gerdin2015)\], trauma is one of the primary causes for
 mortality and morbidity throughout the world. \[[2](#ref-GlobalStats)\]
-It is a disease estimated to claim the lives of several million people
-annually and constitutes a massive burden on the global economy.
+It is a disease estimated to claim several million lives each year and
+constitutes a massive burden on the global economy.
 \[[2](#ref-GlobalStats)\] For every death by trauma, three patients are
 rendered permanently disabled \[[3](#ref-Trauma)\], which significantly
 amplifies the social and economic impacts of the disease as well as the
@@ -17,7 +17,7 @@ importance of quality trauma care.
 
 Approximately half of all deaths attributable to trauma occur within
 minutes of the initial injury \[[3](#ref-Trauma)\], making primary
-prevention the most effective way to significantly adress mortality and
+prevention the most effective way to significantly address mortality and
 morbidity. The second half however, often as a result of neurological
 dysfunction, sepsis or multisystem organ failure, occurs later and can
 to a point, be prevented \[[3](#ref-Trauma)\]. Evidence of this is seen
@@ -110,7 +110,7 @@ directly life threatening, the patient in need of a full trauma team,
 and a transport by ambulance or helicopter to the Karolinska University
 Hospital trauma center is subsequently undertaken. At arrival, they are
 taken to the trauma room where they are met by a surgeon who assumes the
-role as trauma leader, an anesthesiologist, an orthopedist, a
+role as trauma leader, an anesthesiologist, an orthopedic surgeon, a
 radiologist, a surgical nurse, an assistant surgical nurse, a nurse
 anesthetist, an emergency medicine nurse, an emergency medicine
 assistant nurse and a radiology nurse. A primary survey is then
@@ -121,28 +121,27 @@ and the next course of action is decided upon. \[[10](#ref-Traumateam)\]
 Patients treated at Karolinska University Hospital, who required trauma
 team activation or retrospectively were found to have injuries
 corresponding to a New Injury Severity Score (NISS, a validated model
-for grading of trauma injury severity \[[11](#ref-NISS)\]) grading of 15
-or greater, since 2012 (n>21,000) are included in the hospitals trauma
-registry. This includes patients transferred to the hospital within 7
-days of an injury corresponding to a NISS grading of \>15. (Manual
-SweTrau) Excluded are patient who triggers trauma team activation
-despite not having suffered a traumatic injury and patients whose
-solitary injury is chronic subdural hematoma.The registry is
-comprehensive and contains information about prehospital type of
-transport, prehospital vital parameters, type of injury, vital
-parameters at arrival, intention of injury, important lab values and
-several other data points pertaining to the same category. (Manual
-SweTrau)
+for grading of trauma injury severity) \[[11](#ref-NISS)\]) grading of
+15 or greater, since 2012 are included in the hospitals trauma registry.
+This includes patients transferred to the hospital within 7 days of an
+injury corresponding to a NISS grading of \>15. (Manual SweTrau)
+Excluded are patient who triggers trauma team activation despite not
+having suffered a traumatic injury and patients whose solitary injury is
+chronic subdural hematoma.The registry is comprehensive and contains
+information about prehospital type of transport, prehospital vital
+parameters, type of injury, vital parameters at arrival, intention of
+injury, important laboratory parameters and several other data points
+pertaining to the same category. (Manual SweTrau)
 
 Follow up is conducted after 30 days and registers survival, days in
 ventilator, GCS at discharge, highest level of care received, location
 of discharge, if there were a transfer to another unit of care and if
 there was an autopsy performed. The Karolinska care quality registry
 contains a subset of those patient cases, selected for multidisciplinary
-mortality and morbidity review, since 2014 (n>2,200). In each of the
-patient cases selected for review, one question is posed and
-subsequently answered, namely: was there an opportunity for improvement
-in the care of this patient?
+mortality and morbidity review, since 2014. In each of the patient cases
+selected for review, one question is posed and subsequently answered,
+namely: was there an opportunity for improvement in the care of this
+patient?
 
 ### Participants
 
@@ -200,7 +199,7 @@ at Karolinska University Hospital trauma center. The collections of data
 most applicable to our chosen study population are the Karolinska trauma
 and trauma care quality registries, which is why they were chosen as our
 primary source of data. The Karolinska trauma registry contains
-information about roughly 21,000 patients, 2,200 of which are also
+information about roughly 21,000 patients, 2,200 of whom are also
 included in the Karolinska trauma care quality registry.
 
 ### Quantitative variables
