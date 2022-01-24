@@ -8,8 +8,8 @@ Incidence of Opportunities for Improvement - Study Plan
 Defined as physical injury and the body’s associated response
 \[[1](#ref-Gerdin2015)\], trauma is one of the primary causes for
 mortality and morbidity throughout the world. \[[2](#ref-GlobalStats)\]
-It is a disease estimated to claim the lives of several million annually
-and constitutes a massive burden on the global economy.
+It is a disease estimated to claim the lives of several million people
+annually and constitutes a massive burden on the global economy.
 \[[2](#ref-GlobalStats)\] For every death by trauma, three patients are
 rendered permanently disabled \[[3](#ref-Trauma)\], which significantly
 amplifies the social and economic impacts of the disease as well as the

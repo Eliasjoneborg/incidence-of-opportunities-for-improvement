@@ -14,7 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Introduction
 ### Background
 
-Defined as physical injury and the body’s associated response [@Gerdin2015], trauma is one of the primary causes for mortality and morbidity throughout the world. [@GlobalStats] It is a disease estimated to claim the lives of several million annually and constitutes a massive burden on the global economy. [@GlobalStats] For every death by trauma, three patients are rendered permanently disabled [@Trauma], which significantly amplifies the social and economic impacts of the disease as well as the importance of quality trauma care.
+Defined as physical injury and the body’s associated response [@Gerdin2015], trauma is one of the primary causes for mortality and morbidity throughout the world. [@GlobalStats] It is a disease estimated to claim the lives of several million people annually and constitutes a massive burden on the global economy. [@GlobalStats] For every death by trauma, three patients are rendered permanently disabled [@Trauma], which significantly amplifies the social and economic impacts of the disease as well as the importance of quality trauma care.
 
 Approximately half of all deaths attributable to trauma occur within minutes of the initial injury [@Trauma], making primary prevention the most effective way to significantly adress mortality and morbidity. The second half however, often as a result of neurological dysfunction, sepsis or multisystem organ failure, occurs later and can to a point, be prevented [@Trauma]. Evidence of this is seen in several hospitals, when comparing mortality rates prior to and after  introduction of the Advanced Trauma Life Support (ATLS) method, a systematized approach to initial rapid trauma evaluation [@ATLS2][@ATLSItaly][@ATLS3].
 
