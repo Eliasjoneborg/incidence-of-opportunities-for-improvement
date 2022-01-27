@@ -155,7 +155,7 @@ As the primary outcome measure, the dichotomous variable ‘opportunity
 for improvement’ (yes/no), as defined in the trauma care quality
 registry, is used. An opportunity for improvement was considered to
 apply if the multidisciplinary review board deemed it so, further
-discussed under data sources/measurement.
+discussed under measurement.
 
 ### Potential effect modifiers
 
@@ -167,7 +167,7 @@ included in the registries as a result. As such, they may have been
 undertreated and may, as a group, have a lower true incidence of
 opportunities for improvement, then the reported one.
 
-### Data sources/measurement
+### Measurement
 
 The answer ‘yes’ or ‘no’ to the dichotomous variable ‘opportunities for
 improvement’ found in the Karolinska trauma care quality registry, was
