@@ -1,0 +1,93 @@
+---
+title: "Incidence of Opportunities for Improvement - Study Plan"
+output: pdf_document
+bibliography: citations.bib
+link-citations: yes
+csl: bmcemerg.csl
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<!--Bra gjort! Ett förslag ang upplägg för introduktion/röd tråd och de olika styckena:
+1. Vad är trauma och varför är trauma ett problem.
+2. Varför förbättra traumavården, De olika kohorterna och intro till preventable deaths
+3. Preventable deaths -> Vårdkvalitetsarbeten, introducera MoM-konferans
+4. Vad vet vi idag? Om kohorterna? vad har vi åstakommit, aka mycket runt mortalitet men OFI är ej undersökt
+5. Dina AIMS och om du ev hittar något som skulle styrka någon hypotes åt något håll -->
+## Introduction
+### Background
+
+Defined as physical injury and the body’s associated response [@Gerdin2015], trauma is one of the primary causes for mortality and morbidity throughout the world. <!--Ev lite mer specifikt påstående än "one of the primary", exv tillägg att det är ledande orsaken till sjukdomsbörda mellan isch 10-49 år?, alt vilken ålder det är ledande dödsorska för (isch uppt till 45?) -->[@GlobalStats] It is a disease estimated to claim several <!-- Several är för diffust, skriv ut aktuell estimat. --> million lives each year and constitutes a massive burden on the global economy. [@GlobalStats] For every death by trauma, three patients are rendered permanently disabled [@Trauma], which significantly amplifies the social and economic impacts of the disease as well as the importance of quality trauma care.<!--Bra -->
+
+Approximately half of all deaths attributable to trauma occur within minutes of the initial injury [@Trauma], making primary prevention the most effective way to significantly address mortality and morbidity. The second half however, often as a result of neurological dysfunction, sepsis or multisystem organ failure, occurs later and can to a point, be prevented [@Trauma]. Evidence of this is seen in several hospitals, when comparing mortality rates prior to and after the introduction of the Advanced Trauma Life Support (ATLS) method for rapid initial trauma evaluation [@ATLS2][@ATLSItaly][@ATLS3]. <!-- Tipps, Martin har precis erhållit ett stort anslag för att genomföra en stor, första i sitt slag, multicenter-studie ang om ATLS överhuvudtaget har effekt på mortalitet. Finns bara addekvat evidens för att ATLS förbättrar diverse andra parametrar. Så den sista meningen är inte sann. Förslag är att fördjupa konceptet "preventable deaths" och data runt det istället. -->
+
+In 2008, the American College of Surgeons initiated an effort to improve and systematize trauma care across the continent through their Trauma Quality Improvement Program (TQIP) [@TQIP]. Inherent to the program, is a grouping of trauma patients into cohorts, using the Abbreviated Injury Scale (AIS) grading system, which forms a number of seven digits indicating (i) region of injury, (ii) type of anatomical structure, (iii) specific anatomical structure, (iv) level of injury and (v) severity of injury [@TQIP][@AIS]. <!--Bra, men istället för teknikalitet runt AIS så kanske nämna någon rational varför man delat upp i grupperna. -->In our study, we have chosen to specifically include five cohorts, defined as: blunt multisystem injury with an AIS severity score of > 3 in a least two regions of the body; penetrating truncal injury with an AIS severity score of > 3 in the regions of the neck, chest, or abdomen; shock patients with a systolic blood pressure < 90 mmHg; patients with isolated traumatic brain injury (TBI); elderly patients (over 65 years of age) without isolated hip fractures <!--Bra, ev hör dessa detaljer hemma i metoden istället -->. [@TQIP]
+<!--Förslag att fokusera mer djuplodad på kvalitetsarbeten och varför man gör dem. Sedan kan du nämna de olika kohorterna men exakta detaljer vad som definerar respikteve kohort kan skrivas i metoden. Finns det en rational varför man valt att dela upp patienterna på detta sätt?  -->
+Two essential aspects of trauma quality evaluation are benchmarking of outcomes and multidisciplinary mortality and morbidity review boards. Benchmarking of outcomes is generally done by comparing outcomes between or within centers across two or more of the trauma cohorts. The purpose of the multidisciplinary mortality and morbidity review boards, is to identify possibilities for improvement and implement appropriate corrective initiatives. 
+<!--bra, men du behöver källor. -->
+While much is known about mortality outcomes between the trauma cohorts, little research has been conducted on how the incidence of opportunities for improvement varies across these cohorts. As we strive to improve the quality of trauma care, this an important gap in knowledge that needs to be addressed. We will argue that it is plausible to assume that the number of opportunities for improvements may vary between cohorts and that the result could give us a hint on where to focus our limited resources.
+<!--Bra!, bifoga bara en källa på att påståendet om mortality i de olika kohorterna -->
+### Aims
+
+The overarching aim of this study is to further investigate the quality of early<!--Finns det en anledning att du skriver early? Granskningen sträcker sig ju hela vårdtiden --> trauma care at Karolinska University Hospital trauma center in Stockholm, Sweden. 
+
+**Specific aims:**
+
+
+* To estimate the incidence of opportunities for improvement in each of the TQIP trauma patient cohorts in the Karolinska trauma and trauma care quality registries.
+* To compare incidence of opportunities for improvement between cohorts and plot them as a function over time.
+
+## Methods
+### Study design 
+<!--Ändrat tempens, "was conducted.." för lättare konvertering till komplett manuskript. -->
+A single blinded retrospective cohort study was conducted using data from the Karolinska University Hospital trauma registry and the trauma care quality database. The registries was linked and the patients either divided between the TQIP cohorts. Using a complete case analysis patients was divided between the TQIP cohorts. All data handling anad statistical analysis was initially done using simulated data to minimise bias. Thereafter the incidence of ‘opportunities for improvement’, a dichotomous proxy measure for sub optimal care, was meassured and compared between cohorts and plotted as a function over time. 
+
+### Setting 
+
+Karolinska University Hospital is a level 1 trauma centre that manages 1300 trauma patients each year. Trauma patients are triaged in a pre-hospital setting as a priority one or two by assessing vital physiological parameters, anatomical criterias and mechanisms of injury. The pre-hospital system includes a helicopter emergency medical service and three  physcician staffed ambulances. The in-hospital system includes a multidisciplinary trauma team with a surgeon,an anesthesiologist, an orthopedic surgeon, a radiologist, a surgical nurse, an assistant surgical nurse, a nurse anesthetist, an emergency medicine nurse, an emergency medicine assistant nurse and a radiology nurse. Consultations and involvement with associated specializes are available around the clock. The team has immediate access to radiology, surgery, and intensive care.
+
+The multidisciplinary review meetings regarding opportunity for improvement, selects patients from the trauma registry using audit filters. The cases are then discussed during monthly meetings which a board of representatives from all disciplines involved in trauma care - surgery, neurosurgery, orthopaedics, anaesthesia and intensive care, nursing, and radiology. The meeting reach consensus regarding the presence of opportunities for improvement and appropriate corrective actions. Follow up is conducted after 30 days and registers survival, days on ventilator, GCS at discharge, highest level of care received, location of discharge, if there were a transfer to another unit of care and if there was an autopsy performed as well as 15 hospital specific variables.
+
+### Participants 
+We included all trauma patients included in the Karolinska care quality registry between 2014 and 2021. The quality registry selects patients from the Karolinska University Hospital trauma registry which consecutively includes all patients aged at least 15 years admitted with trauma team activation, regardless of injury severity score, as well as patients admitted without trauma team activation but found to have an injury severity score of more than 9. Excluded are patient who triggers trauma team activation despite not having suffered a traumatic injury, patients whose solitary injury is chronic subdural hematoma, patients who were pronounced dead on arrival, patients who suffered from an isolated gunshot wound to the brain, patients with severe burns and patients with pre-existing advanced directives to withhold life sustaining interventions. 
+
+The trauma care quality registry selects patients using audit filters: systolic blood pressure less than 90, Glasgow coma scale less than 9 and not intubated, injury severity score more than 15 but not admitted to the intensive care unit, time to acute intervention more than 60 minutes, time to computed tomography more than 30 minutes, and death within 30 days after trauma. Lastly we exclude all patient with insufficient data, as to render any attempt of categorization into the TQIP cohorts impossible.
+
+*Finner ingen data om tidigare behandlingsbegränsningar i SweTrau-manualen, avvaktar med att ta bort meningen tills dess att jag fått kommentarer. Något liknande kanske kan formuleras med hjälp av variabeln "ASA-klassifikation innan trauma".* 
+<!--Behöver du nämna detta? -->
+
+### Variables 
+
+As the primary outcome measure, the dichotomous variable ‘opportunity for improvement’ (yes/no), derived from the Karolinska trauma care quality registry, is used. An opportunity for improvement is considered to apply if a multidisciplinary mortality and morbidity review board have deemed it so. 
+
+##### Potential effect modifiers
+
+There is a possibility that patients who would otherwise be characterized as trauma patients retrospectively, namely those who did not initiate trauma team activation, but satisfied the NISS scoring criteria, were subject to systematic mis- or underdiagnosis and not included in the registries as a result. As such, they may have been undertreated and may, as a group, have a lower true incidence of opportunities for improvement, then the reported one. There is also a possibility that the patients excluded as a result of having insufficient data, were systematically better or worse of than the patients with complete data.
+
+### Measurement 
+
+The answer ‘yes’ or ‘no’ to the dichotomous variable ‘opportunities for improvement’ found in the Karolinska trauma care quality registry, was contingent on the consensus of the discussion in the multidisciplinary review board meeting. For each case, the attending physicians and nurse made a decision based on certain guiding questions, e.g.: “Were the material resources available appropriate for the type and severity of the injuries?” or “Were there enough physicians, nurses, assistant nurses...” and so on. 
+
+*Jag har haft svårt att hitta den exakta mallen som används för att vägleda dessa beslut. Tar gärna emot tips om hur jag hittar den.* <!--Vilken mall är det du använt, @Martin, åsikter här? -->
+
+### Bias
+
+Data handling and statistical analysis was developed using a step-by-step basis with simulated data. It was rigorously tested throughout its development process, until the results using the simulated data set was satisfactory. A selection biased, caused by the inclusion criteria for the Karolinska care quality registry and the trauma registry, is possible. 
+
+### Study size 
+
+The collections of data most applicable to our study question are the Karolinska trauma and trauma care quality registries, which is why they were chosen as our primary source of data. The Karolinska trauma registry contains information about roughly 21,000 patients, 2,200 of whom are also included in the Karolinska trauma care quality registry. The data point 'opportunities for improvement' is solely available in the trauma care quality registry, and as a result, our study population can never be larger than its total number of patients, though it will most likely be significantly reduced after exclusion. We strongly believe that the cohorts will be sizable enough to reach statistically powerful conclusions.
+<!--This need to be refined, need to know the final numer that is actually in the Karolinska trauma care quality registry. At the moment my suggestion is: We included all patients in the Karolinska trauma care quality registry collected between 2014 and 2021, containing ..... patients. -->
+### Quantitative variables
+
+The majority of the variables dealt with in order to categorize patients into the TQIP cohorts are qualitative in nature, so is our outcome measure. However, three quantitative variables will be used: age, systolic BP and AIS severity score. Age will be turned into a qualitative variable by division of patients into three groups, ages 15 or below (exclusion), ages 16-64 (eligible for inclusion in the adult cohorts) and ages 65 and above (eligible for inclusion in the elderly cohort). Systolic BP scores will also be modified into a qualitative variable by the breaking up of patients into two groups, those with a BP of 90 or greater and those with less (eligible for inclusion in the shock cohort). Lastly the process will be repeated with AIS severity score by way of grouping the patients into those with AIS severity score<three (not eligible for inclusion), those with three (eligible for the shock, elderly and TBI cohorts) and those with >three (eligible for inclusion in all cohorts).
+
+### Statistical methods 
+
+We did a complete case analysis of all patients in the Karolinska trauma care quality registry. Variables was handled and converted in accordance with the SweTrau Manual. Thereafter patients was grouped and excluded according to the TQIP cohort definitions, inclusion criteria and exclusion criteria listed above. Once grouping and exclusion have been successfully accomplished, the incidence of 'opportunities for improvements' was calculated in each cohort.
+
+## References
+
+
