@@ -1,0 +1,115 @@
+---
+title: "Progress Report"
+author: "Elias Joneborg"
+date: "2/7/2022"
+output: word_document
+bibliography: citations.bib
+link-citations: yes
+csl: bmcemerg.csl
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+Trauma, defined as physical injury and the body’s associated response,[@Gerdin2015] is the leading cause of death in patients aged 45 or younger.[@GlobalStats] It is estimated to claim 4,4 million lives each year[@WHO_2019] and constitutes a massive burden on the global economy.[@GlobalStats] For every death by trauma, three patients are rendered permanently disabled,[@Trauma] which significantly amplifies the social and economic impacts of the disease as well as the importance of quality trauma care. As a disease, trauma accounts for a larger cumulative loss of productive years of work, than any other.[@Productiveyears]
+Approximately half of all deaths attributable to trauma occur within minutes of the initial injury [@Trauma], making primary prevention the most effective way to address its significant mortality. The second half occurs later and can be further divided into those who die from neurologic dysfunction (30%), with a peak within 2 days post-injury, and those who die from sepsis or multisystem organ failure (30%) with a peak within a few weeks post-injury. [@Trauma] The two major mechanisms of injury are blunt trauma, due to falls, traffic accidents and assaults and penetrating trauma, due to stabbing or use of firearms. [@Trauma]
+
+### Trauma centres
+There is a “volume-outcome relationship” in trauma care, meaning that the more patients of a certain category a hospital handles, the better it will be to handle that specific type of patient in the future. Partly as a result of this insight, trauma care throughout most parts of the world have been centralised to trauma centres, which has lead to a significant decline in the number of trauma related deaths.[@Traumacentrematuration][@traumacentres2] The American College of Surgeons (ACS) have established criteria for different levels of trauma centres (I-V), with different abilities to offer specialized care. The highest level, level one, can be described as a comprehensive tertiary care facility capable of providing total care for every aspect of injury. The lowest level, level five, is a centre capable of evaluating, stabilizing and preparing patients for transfer to a higher level of care.[@traumacentres2]
+
+### Preventable deaths
+In trauma epidemiology, deaths by trauma are generally divided into one of three categories: non-preventable, potentially preventable or preventable.[@Preventable_1][@Preventable_2]  In order for a death to be labeled preventable, its avoidability must first be determined. The criteria for a traumatic death being avoidable are three fold: the patient must have survived initial traumatic injuries and its consequences, the care of the patient cannot have been in accordance to treatment guidelines and errors in patient care must be related- or indirectly related to the patients death.[Preventable trauma deaths: from panel review to population based-studies] Individual assessment of these criteria is a process which is not performed uniformly across institutions due to the lack of a standardized method of assessment.
+ A systematic review by Costanti et al. found that institutions most commonly define preventable deaths using clinical guidelines such as ATLS, followed by “Injury Severity Score”(ISS) and survival rate as determined by “Trauma Injury Severity Score” (TRISS).[Preventable trauma deaths: from panel review to population based-studies] Partly as a consequence of this, studies endeavoring to estimate the percentage of preventable and potentially preventable in-hospital deaths, have reached vastly different results, ranging from 2,5% to 76%. Nevertheless, on the existence of preventable in-hospital trauma related deaths, there is wide spread consensus. [@Preventable_5][@Preventable_1][@Preventable_2][@Preventable_3][@Preventable_6]
+
+### Trauma quality improvement 
+In order to lower the significant mortality and morbidity rates of trauma, several efforts to improve and systematize trauma care throughout the world have been initiated by institutions such as the World Health Organization (WHO), the ACS and the Australian National Trauma Registry Consortium (ANTRC).[@WHO_2009][@TQIP][@AUSTQIP] They issue guidelines concerning trauma patient care, study directives, selection of study cohorts and trauma registry composition.
+
+### Trauma registries
+Essential to quality trauma care are continuous retrospective assessment of patient care and benchmarking of outcomes, [@QualityBenchmarking][@WHO_2009][@TQIP]  which requires easily accessible databases of patient data.[@Registry] Most modern trauma centres therefore document vital aspects of patient care in institutional, or national trauma registries.[@Registry][@QualityBenchmarking]
+
+### Mortality and morbidity review boards
+Multidisciplinary mortality and morbidity review boards are a staple of most modern trauma centres. Patient are selected by the use of audit filters in institutional-specific trauma registries.[@Audit][@MMReview] Trauma audit filters flags patients whose care deviates from a predetermined set of conditions, regarding timeframes in which tests or interventions ought to be provided, or outcomes that are expected to occur.[@Audit] These patient cases are then overviewed by a trained nurse or physician, and a subset of them qualify for discussion at a multidisciplinary mortality and morbidity review board meeting. [@MMReview]
+Once selected for review, the cases are brought before a board of representatives, from all disciplines involved in patient care: surgery, neurosurgery, orthopaedics, anaesthesia and intensive care, nursing, and radiology. The board aims to identify opportunities for improvement and implement corrective initiatives.[@MMReview]
+### Swedish trauma registry
+Sweden has a national trauma registry, SweTrau, which includes all patients involved in a traumatic event, and who consecutively trigger trauma team activation at their local trauma centre. Also included are patients retrospectively found to have a “New Injury Severity Score” (NISS) >15, and patients transferred to the hospital, within a week of having suffered a traumatic injury corresponding to a NISS>15. In the registry, 207 data points are documented, containing information about pre-hospital vital physiological parameters, emergency department vital physiological parameters, mechanism of injury, type of injury, interventions and many others. [SweTrau]
+
+### Trauma care quality registry
+At Karolinska University Hospital trauma level-1 centre in Stockholm, Sweden, all patients selected for a multidisciplinary mortality and morbidity review board are included in the hospital’s trauma care quality registry. For each patient case, the registry includes the variable opportunities for improvement, in which a category of improvement possibilities, or lack thereof, is documented. The decision about whether an opportunity for improvement is considered to apply is determined by a consensus of the review board.
+
+### Gap in knowledge
+Much is known about morbidity and mortality within and across the trauma cohorts,[@mortality][@mortality2][[@mortality3][@mortality4][@mortality5] but little research has been conducted on how the incidence of opportunities for improvement varies across these cohorts. As we strive to improve the quality of trauma care, this an important gap in knowledge that needs to be addressed. It is perceivable that two cohorts with a similar mortality rate, have a disproportionate distribution of opportunities for improvement, and that the patient care in one of the cohorts as a result is not equal to that of the other.
+
+### Aim
+The aim of this study is to estimate the incidence of opportunities in the trauma cohorts blunt multisystem, penetrating, shock, severe traumatic brain injury (TBI) and elderly in the Karolinska University Hospital (KUH) trauma care quality registry, to compare them and to plot them as a function over time. The decision to study these cohorts was one taken in accordance with local directives and limitations to the data contained in the KUH trauma and trauma care quality registries. We hypothesize that the number of opportunities for improvements may vary between the trauma cohorts and that the result could guide us in where to focus our limited resources.
+
+## Methods
+
+### Study design 
+
+A single blinded retrospective cohort study was conducted using data from the KUH trauma and the trauma care quality registries. The registries were linked and the patients divided between the trauma cohorts using a complete case analysis. All data handling and statistical analysis were initially done to a simulated set of data in order to minimize bias. Thereafter the incidence of ‘opportunities for improvement’, a dichotomous proxy measure for sub optimal care, was measured, compared between cohorts and plotted as a function over time. 
+
+### Setting 
+
+Karolinska University Hospital is a level 1 trauma centre that manages 1300 trauma patients each year. Trauma patients are triaged in a pre-hospital setting as a priority one or two by assessing vital physiological parameters, anatomical criteria and mechanism of injury. The pre-hospital system includes a helicopter emergency medical service and three physcician staffed ambulances. The in-hospital system includes a multidisciplinary trauma team with a surgeon, an anesthesiologist, an orthopedic surgeon, a radiologist, a surgical nurse, an assistant surgical nurse, a nurse anesthetist, an emergency medicine nurse, an emergency medicine assistant nurse and a radiology nurse. Consultations and involvement with associated specializes are available around the clock. The team has immediate access to radiology, surgery, and intensive care.
+
+The monthly multidisciplinary trauma mortality and morbidity review boards selects patients from the trauma registry using audit filters: systolic blood pressure less than 90; Glasgow coma scale less than 9 and not intubated; injury severity score more than 15 but not admitted to the intensive care unit; time to acute intervention more than 60 minutes; time to computed tomography more than 30 minutes; and death within 30 days after trauma. The board is comprised of representatives from all disciplines involved in trauma care - surgery, neurosurgery, orthopaedics, anaesthesia and intensive care, nursing, and radiology. Its purpose is to reach a consensus regarding the presence of opportunities for improvement and implement appropriate corrective actions.
+
+### Participants 
+
+We included all trauma patients in the KUH care quality registry between 2014 and 2021. The quality registry contains a subset of the patients in the KUH trauma registry selected for review by a multidisciplinary mortality and morbidity review board. KUH trauma registry includes all patients admitted with trauma team activation, as well as patients admitted without trauma team activation, but retrospectively found to have a new injury severity score (NISS) of more than 15. Not included in the registry are patients who trigger trauma team activation despite not having suffered a traumatic injury and patients whose solitary injury is chronic subdural hematoma. Moreover, excluded from our study are all patients aged 15 or below and all patients with insufficient data, as to render any attempt of categorization into cohorts futile.
+
+The cohorts are defined as: blunt multisystem injury with an abbreviated injury scale (AIS) severity score of > 3 in a least two regions of the body; penetrating truncal injury with an AIS severity score of > 3 in the regions of the neck, chest, or abdomen; shock patients with a systolic blood pressure < 90 mmHg; patients with isolated severe traumatic brain injury (TBI); elderly patients (over 65 years of age).
+
+
+### Variables 
+
+As the primary outcome measure, the dichotomous variable ‘opportunity for improvement’ (yes/no), derived from the KUH trauma care quality registry, was used. An opportunity for improvement was considered to apply if a multidisciplinary mortality and morbidity review board have deemed it so. 
+
+##### Potential effect modifiers
+
+There is a possibility that patients who would otherwise be characterized as trauma patients retrospectively, namely those who did not initiate trauma team activation, but satisfied the injury severity score criterium, were subject to systematic mis- or underdiagnosis and not included in the registries as a result. As such, they may have been undertreated and may, as a group, have a lower true incidence of opportunities for improvement, then the reported one. There is also a possibility that the patients excluded as a result of having insufficient data, were systematically better or worse of than the patients with complete data.
+
+### Measurement 
+
+The answer ‘yes’ or ‘no’ to the dichotomous variable ‘opportunities for improvement’ found in the KUH trauma care quality registry, was contingent on the consensus of the discussion in the multidisciplinary review board meeting. Each case is discussed thoroughly by the attending representatives as relates to: initial evaluation, initial care, reason for audit filter trigger, resource management, outcome and so forth, and a decision regarding the presence of opportunities for improvement is subsequently taken. Lastly, they discuss corrective initiatives.
+
+### Bias
+
+Data handling and statistical analysis was done on a step-by-step basis using simulated data until the results using the simulated data set was satisfactory. Selection bias, caused by the inclusion criteria for the KUH care quality registry and the trauma registry, is possible. 
+
+### Study size 
+
+We included all patients in the KUH care quality registry, collected between 2014 and 2021, resulting in 12 099 study participants.
+
+### Quantitative variables
+
+Five quantitative variables were used to determine cohort eligibility: age, pre hospital systolic BP, emergency department systolic BP, AIS body region and AIS severity score. They were all converted into qualitative variables, by dividing the patients into groups defined as a numerical range (eg. age 15-65). The quantitative variable NISS was used to determine eligibility to the study as a whole, and were converted into a qualitative variable in the same manner. No quantitative variables were used in the subsequent analyses.
+
+### Statistical methods 
+
+We did a complete case analysis of all patients in the KUH trauma care quality registry. Variables was handled and converted in accordance with the SweTrau Manual. Thereafter patients was grouped and excluded as pertains to cohort definitions, inclusion criteria and exclusion criteria listed above. Once grouping and exclusion have been successfully accomplished, the incidence of 'opportunities for improvements' was calculated in each cohort.
+
+## Ethical considerations
+Ethical review number: 2021-02541, 2021-03531
+### Autonomy
+All patient data were collected prior to the start of this study as a part of the Swedish Trauma Registry, and the Karolinska University Hospital trauma care quality registry. No need data had to be collected in order for us to perform our analyses. To my knowledge, patients are not asked for permission before inclusion in the trauma registry and trauma care quality registry, but the the information contained is not sensitive in nature.
+### Justice 
+Severely injured and deceased patients are included in the registry, but I would argue that since they are the study group in question, it is ethically defensible to include them. Patients with protected identity are not included in the registries. The problem this study seeks to address is important enough to justify the resources spent on it. This project, in conjunction with similar projects being conducted, have important implications, primarily for resource management in trauma care at Karolinska University Hospital, but one could argue that it could have national implications as well if the results are strong enough. 
+### Beneficience
+The study is of good scientific quality.
+This project has the potential to change the way resources are managed in trauma care at Karolinska University Hospital, and may as such, reduce the prevalence of mortality and morbidity, albeit moderately. It is also important in the larger scheme of things, as it fills a gap of knowledge in the swedish trauma literature and encourages more studies to be conducted.
+### Non-malificence
+The study does not risk harming study participants in any regard. This project will not damage public confidence in the scientific method. This study does not risk stigmatisation of a patient- or societal group.
+In conclusion, I would say that the benefits of this study to the population in question far outweigh its disadvantages.
+
+## Back-up plan
+In this project, we survey the Swedish Trauma Registry and the Karolinska University Hospital trauma care quality registry. As a consequence, this project does not involve any collection of data, and is mainly focused on cleaning the data, grouping the patients and the performance of statistical analyses in R. I do not believe that time will prove insufficient because:
+My primary supervisor have supervised several similar projects and judged the time to be sufficient.
+Together with my supervisors, I have written a detailed timeline with important deadlines.
+I have weekly follow ups with my co-supervisor, as well as monthly follow ups with my supervisor, to ensure my adherence to the timeline.
+Should I encounter any problems, I have an open line of communications with my supervisors.
+ In the event that time should prove slim in spite of the reasons listed above, it will most likely be because of a failure to group the patients to my chosen cohorts. To remedy this, I would have to analyze fewer, or more wide spanning cohorts.
+
+## References
