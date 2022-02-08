@@ -1,0 +1,278 @@
+---
+title: "Statistiktest"
+author: "Elias Joneborg"
+date: "2/8/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+```{r}
+library(tidyr)
+
+swetrau_scrambled <- read.csv("swetrau-scrambled.csv")
+problem_scrambled <- read.csv("problem-scrambled.csv")
+
+problem_scrambled$`Problemomrade_.FMP`[problem_scrambled$`Problemomrade_.FMP`=='ok'|problem_scrambled$`Problemomrade_.FMP`=='Ok'|problem_scrambled$`Problemomrade_.FMP`=='OK'|problem_scrambled$`Problemomrade_.FMP`=='Föredömligt handlagd']<-'No'
+problem_scrambled$`Problemomrade_.FMP`[problem_scrambled$`Problemomrade_.FMP`=='bristande rutin'|problem_scrambled$`Problemomrade_.FMP`=='Dokumentation'|
+                                         problem_scrambled$`Problemomrade_.FMP`=='Dokumetation'|problem_scrambled$`Problemomrade_.FMP`=='Handläggning'|
+                                         problem_scrambled$`Problemomrade_.FMP`=='Kommunikation'|problem_scrambled$`Problemomrade_.FMP`=='kompetens brist'|
+                                         problem_scrambled$`Problemomrade_.FMP`=='Logistik/teknik'|problem_scrambled$`Problemomrade_.FMP`=='Lång tid till DT'|
+                                         problem_scrambled$`Problemomrade_.FMP`=='Lång tid till op'|problem_scrambled$`Problemomrade_.FMP`=='Missad skada'|
+                                         problem_scrambled$`Problemomrade_.FMP`=='Neurokirurg'|problem_scrambled$`Problemomrade_.FMP`=='Tertiär survey'|
+                                         problem_scrambled$`Problemomrade_.FMP`=='Resurs'|problem_scrambled$`Problemomrade_.FMP`=='Traumakriterier/styrning'|
+                                         problem_scrambled$`Problemomrade_.FMP`=='Triage på akutmottagningen'|problem_scrambled$`Problemomrade_.FMP`=='Vårdnivå']<-'Yes'
+
+problemområde<-na.omit(problem_scrambled)
+
+problemområde2<- merge(swetrau_scrambled, problem_scrambled, by= "id")
+
+library(dplyr)
+
+problemområde3<-problemområde2 %>% select(inj_dominant, pt_age_yrs, Problemomrade_.FMP, NISS, pre_sbp_value, pre_sbp_rtscat, ed_sbp_value, ed_sbp_rtscat, 151:201)
+
+problemområde4<-filter(problemområde3, NISS>15, NISS<76, pt_age_yrs >15, pt_age_yrs <120, inj_dominant >0, inj_dominant <3)
+
+#AIS-fix
+library(stringr)
+
+AIS <-problemområde4 %>% select(10:59)
+
+getLastNumber = function(x) str_sub(x, 8L, 8L)
+
+AIS2 <- apply(AIS, c(1,2), getLastNumber)
+
+AIS2=as.data.frame(AIS2)
+
+names(AIS2) <- c('AIS_sev01', 'AIS_sev02', 'AIS_sev03', 'AIS_sev04', 'AIS_sev05', 'AIS_sev06', 'AIS_sev07', 'AIS_sev08', 'AIS_sev09', 'AIS_sev10',
+                 'AIS_sev11', 'AIS_sev12', 'AIS_sev13', 'AIS_sev14', 'AIS_sev15', 'AIS_sev16', 'AIS_sev17', 'AIS_sev18', 'AIS_sev19',
+                 'AIS_sev20', 'AIS_sev21', 'AIS_sev22', 'AIS_sev23', 'AIS_sev24', 'AIS_sev25', 'AIS_sev26', 'AIS_sev27', 'AIS_sev28',
+                 'AIS_sev29', 'AIS_sev30', 'AIS_sev31', 'AIS_sev32', 'AIS_sev33', 'AIS_sev34', 'AIS_sev35', 'AIS_sev36', 'AIS_sev37',
+                 'AIS_sev38', 'AIS_sev39', 'AIS_sev40', 'AIS_sev41', 'AIS_sev42', 'AIS_sev43', 'AIS_sev44', 'AIS_sev45', 'AIS_sev46',
+                 'AIS_sev47', 'AIS_sev48', 'AIS_sev49', 'AIS_sev50')
+
+problemområde5<-cbind(problemområde4, AIS2)
+library(dplyr)
+    TBI_1 <-filter(problemområde5, AISCode_01 <200000 & AIS_sev01>3)
+    TBI_2 <-filter(problemområde5, AISCode_02 <200000 & AIS_sev02>3)
+    TBI_3 <-filter(problemområde5, AISCode_03 <200000 & AIS_sev03>3)
+    TBI_4 <-filter(problemområde5, AISCode_04 <200000 & AIS_sev04>3)
+    TBI_5 <-filter(problemområde5, AISCode_05 <200000 & AIS_sev05>3)
+    TBI_6 <-filter(problemområde5, AISCode_06 <200000 & AIS_sev06>3)
+    TBI_7 <-filter(problemområde5, AISCode_07 <200000 & AIS_sev07>3)
+    TBI_8 <-filter(problemområde5, AISCode_08 <200000 & AIS_sev08>3)
+    TBI_9 <-filter(problemområde5, AISCode_09 <200000 & AIS_sev09>3)
+    TBI_10 <-filter(problemområde5, AISCode_10 <200000 & AIS_sev10>3)
+    TBI_11 <-filter(problemområde5, AISCode_11 <200000 & AIS_sev11>3)
+    TBI_12 <-filter(problemområde5, AISCode_12 <200000 & AIS_sev12>3)
+    TBI_13 <-filter(problemområde5, AISCode_13 <200000 & AIS_sev13>3)
+    TBI_14 <-filter(problemområde5, AISCode_14 <200000 & AIS_sev14>3)
+    TBI_15 <-filter(problemområde5, AISCode_15 <200000 & AIS_sev15>3)
+    TBI_16 <-filter(problemområde5, AISCode_16 <200000 & AIS_sev16>3)
+    TBI_17 <-filter(problemområde5, AISCode_17 <200000 & AIS_sev17>3)
+    TBI_18 <-filter(problemområde5, AISCode_18 <200000 & AIS_sev18>3)
+    TBI_19 <-filter(problemområde5, AISCode_19 <200000 & AIS_sev19>3)
+    TBI_20 <-filter(problemområde5, AISCode_20 <200000 & AIS_sev20>3)
+    TBI_21 <-filter(problemområde5, AISCode_21 <200000 & AIS_sev21>3)
+    TBI_22 <-filter(problemområde5, AISCode_22 <200000 & AIS_sev22>3)
+    TBI_23 <-filter(problemområde5, AISCode_23 <200000 & AIS_sev23>3)
+    TBI_24 <-filter(problemområde5, AISCode_24 <200000 & AIS_sev24>3)
+    TBI_25 <-filter(problemområde5, AISCode_25 <200000 & AIS_sev25>3)
+    TBI_26 <-filter(problemområde5, AISCode_26 <200000 & AIS_sev26>3)
+    TBI_27 <-filter(problemområde5, AISCode_27 <200000 & AIS_sev27>3)
+    TBI_28 <-filter(problemområde5, AISCode_28 <200000 & AIS_sev28>3)
+    TBI_29 <-filter(problemområde5, AISCode_29 <200000 & AIS_sev29>3)
+    TBI_30 <-filter(problemområde5, AISCode_30 <200000 & AIS_sev30>3)
+    TBI_31 <-filter(problemområde5, AISCode_31 <200000 & AIS_sev31>3)
+    TBI_32 <-filter(problemområde5, AISCode_32 <200000 & AIS_sev32>3)
+    TBI_33 <-filter(problemområde5, AISCode_33 <200000 & AIS_sev33>3)
+    TBI_34 <-filter(problemområde5, AISCode_34 <200000 & AIS_sev34>3)
+    TBI_35 <-filter(problemområde5, AISCode_35 <200000 & AIS_sev35>3)
+    TBI_36 <-filter(problemområde5, AISCode_36 <200000 & AIS_sev36>3)
+    TBI_37 <-filter(problemområde5, AISCode_37 <200000 & AIS_sev37>3)
+    TBI_38 <-filter(problemområde5, AISCode_38 <200000 & AIS_sev38>3)
+    TBI_39 <-filter(problemområde5, AISCode_39 <200000 & AIS_sev39>3)
+    TBI_40 <-filter(problemområde5, AISCode_40 <200000 & AIS_sev40>3)
+    TBI_41 <-filter(problemområde5, AISCode_41 <200000 & AIS_sev41>3)
+    TBI_42 <-filter(problemområde5, AISCode_42 <200000 & AIS_sev42>3)
+    TBI_43 <-filter(problemområde5, AISCode_43 <200000 & AIS_sev43>3)
+    TBI_44 <-filter(problemområde5, AISCode_44 <200000 & AIS_sev44>3)
+    TBI_45 <-filter(problemområde5, AISCode_45 <200000 & AIS_sev45>3)
+    TBI_46 <-filter(problemområde5, AISCode_46 <200000 & AIS_sev46>3)
+    TBI_47 <-filter(problemområde5, AISCode_47 <200000 & AIS_sev47>3)
+    TBI_48 <-filter(problemområde5, AISCode_48 <200000 & AIS_sev48>3)
+    TBI_49 <-filter(problemområde5, AISCode_49 <200000 & AIS_sev49>3)
+    TBI_50 <-filter(problemområde5, AISCode_50 <200000 & AIS_sev50>3)
+
+   SevereTBI_cohort <- Reduce(function(x, y) merge(x, y, all=TRUE),
+                              list(TBI_1, TBI_2, TBI_3, TBI_4, TBI_5,
+                                   TBI_6, TBI_7, TBI_8, TBI_9, TBI_10,
+                                   TBI_11, TBI_12, TBI_13, TBI_14, TBI_15,
+                                   TBI_16, TBI_17, TBI_18, TBI_19, TBI_20,
+                                   TBI_21, TBI_22, TBI_23, TBI_24, TBI_25,
+                                   TBI_26, TBI_27, TBI_28, TBI_29, TBI_30,
+                                   TBI_31, TBI_32, TBI_33, TBI_34, TBI_35,
+                                   TBI_36, TBI_37, TBI_38, TBI_39, TBI_40,
+                                   TBI_41, TBI_42, TBI_43, TBI_44, TBI_45,
+                                   TBI_46, TBI_47, TBI_48, TBI_49, TBI_50))
+  library(table1)
+   
+   SevereTBI_cohort1 <-SevereTBI_cohort
+   
+SevereTBI_cohort1$inj_dominant<-factor(SevereTBI_cohort1$inj_dominant, levels=c(1,2), labels=c("Blunt", "Penetrating"))
+
+                   label(SevereTBI_cohort1$NISS)              <- "New Injury Severity Score"
+                    label(SevereTBI_cohort1$inj_dominant)              <- "Dominant Injury"
+                   label(SevereTBI_cohort1$pt_age_yrs)              <- "Age"
+                   label(SevereTBI_cohort1$pre_sbp_value)    <- "Pre Hospital Systolic BP"
+                   label(SevereTBI_cohort1$ed_sbp_value)     <- "Emergency Department Systolic BP"
+
+                  units(SevereTBI_cohort1$pre_sbp_value)  <- "mmHg"
+                  units(SevereTBI_cohort1$ed_sbp_value)   <- "mmHg"
+                  units(SevereTBI_cohort1$pt_age_yrs)   <- "years"
+
+                   table1(~ pt_age_yrs + NISS + pre_sbp_value + ed_sbp_value | inj_dominant, data=SevereTBI_cohort1)
+                   
+library(dplyr)
+
+problemområde5$ed_sbp_value[is.na(problemområde5$ed_sbp_value)]<-350
+
+problemområde5$ed_sbp_value[problemområde5$ed_sbp_value>=1 & problemområde5$ed_sbp_value<=49]<-1
+problemområde5$ed_sbp_value[problemområde5$ed_sbp_value>=50 & problemområde5$ed_sbp_value<=75]<-2
+problemområde5$ed_sbp_value[problemområde5$ed_sbp_value>=76 & problemområde5$ed_sbp_value<=89]<-3
+problemområde5$ed_sbp_value[problemområde5$ed_sbp_value>89 & problemområde5$ed_sbp_value<=298]<-4
+problemområde5$ed_sbp_value[problemområde5$ed_sbp_value==350]<-5
+problemområde5$ed_sbp_value[problemområde5$ed_sbp_value==999]<-5
+
+# Tar RTS värdet från ed, om det inte finns så använder den vanliga blodtrycket, som är grupperat enligt RTS.
+problemområde5$sbp_rts<-with(problemområde5, ifelse(ed_sbp_rtscat!=999 & is.na(problemområde5$ed_sbp_rtscat)==FALSE,ed_sbp_rtscat,ed_sbp_value))
+
+Shock_cohort <- filter(problemområde5, sbp_rts==1 |sbp_rts==2|sbp_rts==3)
+
+library(table1)
+
+Shock_cohort$inj_dominant<-factor(Shock_cohort$inj_dominant, levels=c(1,2),
+       labels=c("Blunt", "Penetrating"))
+
+label(Shock_cohort$NISS)              <- "New Injury Severity Score"
+label(Shock_cohort$pre_sbp_value)    <- "Pre Hospital Systolic BP"
+label(Shock_cohort$ed_sbp_value)     <- "Emergency Department Systolic BP"
+
+units(Shock_cohort$pre_sbp_value)  <- "mmHg"
+units(Shock_cohort$ed_sbp_value)   <- "mmHg"
+
+table1(~ inj_dominant + NISS + pre_sbp_value + ed_sbp_value | inj_dominant, data=Shock_cohort)
+
+#ELDERLY
+
+Elderly_cohort <- filter(problemområde4, pt_age_yrs <120, pt_age_yrs >65)
+
+library(table1)
+
+Elderly_cohort$inj_dominant<-factor(Elderly_cohort$inj_dominant, levels=c(1,2),
+       labels=c("Blunt", "Penetrating"))
+
+                label(Elderly_cohort$NISS)              <- "New Injury Severity Score"
+                label(Elderly_cohort$pre_sbp_value)    <- "Pre Hospital Systolic BP"
+                label(Elderly_cohort$ed_sbp_value)     <- "Emergency Department Systolic BP"
+
+                units(Elderly_cohort$pre_sbp_value)  <- "mmHg"
+                units(Elderly_cohort$ed_sbp_value)   <- "mmHg"
+
+                table1(~ inj_dominant + NISS + pre_sbp_value + ed_sbp_value | inj_dominant, data=Elderly_cohort)
+                   
+ 
+    Penetrating_1 <-filter(problemområde5, AISCode_01 <600000 & AISCode_01 >300000 & AIS_sev01>2 & AIS_sev01<7)
+    Penetrating_2 <-filter(problemområde5, AISCode_02 <600000 & AISCode_02 >300000 & AIS_sev02>2 & AIS_sev02<7)
+    Penetrating_3 <-filter(problemområde5, AISCode_03 <600000 & AISCode_03 >300000 & AIS_sev03>2 & AIS_sev03<7)
+    Penetrating_4 <-filter(problemområde5, AISCode_04 <600000 & AISCode_04 >300000 & AIS_sev04>2 & AIS_sev04<7)
+    Penetrating_5 <-filter(problemområde5, AISCode_05 <600000 & AISCode_05 >300000 & AIS_sev05>2 & AIS_sev05<7)
+    Penetrating_6 <-filter(problemområde5, AISCode_06 <600000 & AISCode_06 >300000 & AIS_sev06>2 & AIS_sev06<7)
+    Penetrating_7 <-filter(problemområde5, AISCode_07 <600000 & AISCode_07 >300000 & AIS_sev07>2 & AIS_sev07<7)
+    Penetrating_8 <-filter(problemområde5, AISCode_08 <600000 & AISCode_08 >300000 & AIS_sev08>2 & AIS_sev08<7)
+    Penetrating_9 <-filter(problemområde5, AISCode_09 <600000 & AISCode_09 >300000 & AIS_sev09>2 & AIS_sev09<7)
+    Penetrating_10 <-filter(problemområde5, AISCode_10 <600000 & AISCode_10 >300000 & AIS_sev10>2 & AIS_sev10<7)
+    Penetrating_11 <-filter(problemområde5, AISCode_11 <600000 & AISCode_11 >300000 & AIS_sev11>2 & AIS_sev11<7)
+    Penetrating_12 <-filter(problemområde5, AISCode_12 <600000 & AISCode_12 >300000 & AIS_sev12>2 & AIS_sev01<7)
+    Penetrating_12 <-filter(problemområde5, AISCode_12 <600000 & AISCode_12 >300000 & AIS_sev12>2 & AIS_sev12<7)
+    Penetrating_13 <-filter(problemområde5, AISCode_13 <600000 & AISCode_13 >300000 & AIS_sev13>2 & AIS_sev13<7)
+    Penetrating_14 <-filter(problemområde5, AISCode_14 <600000 & AISCode_14 >300000 & AIS_sev14>2 & AIS_sev14<7)
+    Penetrating_15 <-filter(problemområde5, AISCode_15 <600000 & AISCode_15 >300000 & AIS_sev15>2 & AIS_sev15<7)
+    Penetrating_16 <-filter(problemområde5, AISCode_16 <600000 & AISCode_16 >300000 & AIS_sev16>2 & AIS_sev16<7)
+    Penetrating_17 <-filter(problemområde5, AISCode_17 <600000 & AISCode_17 >300000 & AIS_sev17>2 & AIS_sev17<7)
+    Penetrating_18 <-filter(problemområde5, AISCode_18 <600000 & AISCode_18 >300000 & AIS_sev18>2 & AIS_sev18<7)
+    Penetrating_19 <-filter(problemområde5, AISCode_19 <600000 & AISCode_19 >300000 & AIS_sev19>2 & AIS_sev19<7)
+    Penetrating_20 <-filter(problemområde5, AISCode_20 <600000 & AISCode_20 >300000 & AIS_sev20>2 & AIS_sev20<7)
+    Penetrating_21 <-filter(problemområde5, AISCode_21 <600000 & AISCode_21 >300000 & AIS_sev21>2 & AIS_sev21<7)
+    Penetrating_22 <-filter(problemområde5, AISCode_22 <600000 & AISCode_22 >300000 & AIS_sev22>2 & AIS_sev22<7)
+    Penetrating_23 <-filter(problemområde5, AISCode_23 <600000 & AISCode_23 >300000 & AIS_sev23>2 & AIS_sev23<7)
+    Penetrating_24 <-filter(problemområde5, AISCode_24 <600000 & AISCode_24 >300000 & AIS_sev24>2 & AIS_sev24<7)
+    Penetrating_25 <-filter(problemområde5, AISCode_25 <600000 & AISCode_25 >300000 & AIS_sev25>2 & AIS_sev25<7)
+    Penetrating_26 <-filter(problemområde5, AISCode_26 <600000 & AISCode_26 >300000 & AIS_sev26>2 & AIS_sev26<7)
+    Penetrating_27 <-filter(problemområde5, AISCode_27 <600000 & AISCode_27 >300000 & AIS_sev27>2 & AIS_sev27<7)
+    Penetrating_28 <-filter(problemområde5, AISCode_28 <600000 & AISCode_28 >300000 & AIS_sev28>2 & AIS_sev28<7)
+    Penetrating_29 <-filter(problemområde5, AISCode_29 <600000 & AISCode_29 >300000 & AIS_sev29>2 & AIS_sev29<7)
+    Penetrating_30 <-filter(problemområde5, AISCode_30 <600000 & AISCode_30 >300000 & AIS_sev30>2 & AIS_sev30<7)
+    Penetrating_31 <-filter(problemområde5, AISCode_31 <600000 & AISCode_31 >300000 & AIS_sev31>2 & AIS_sev31<7)
+    Penetrating_32 <-filter(problemområde5, AISCode_32 <600000 & AISCode_32 >300000 & AIS_sev32>2 & AIS_sev32<7)
+    Penetrating_33 <-filter(problemområde5, AISCode_33 <600000 & AISCode_33 >300000 & AIS_sev33>2 & AIS_sev33<7)
+    Penetrating_34 <-filter(problemområde5, AISCode_34 <600000 & AISCode_34 >300000 & AIS_sev34>2 & AIS_sev34<7)
+    Penetrating_35 <-filter(problemområde5, AISCode_35 <600000 & AISCode_35 >300000 & AIS_sev35>2 & AIS_sev35<7)
+    Penetrating_36 <-filter(problemområde5, AISCode_36 <600000 & AISCode_36 >300000 & AIS_sev36>2 & AIS_sev36<7)
+    Penetrating_37 <-filter(problemområde5, AISCode_37 <600000 & AISCode_37 >300000 & AIS_sev37>2 & AIS_sev37<7)
+    Penetrating_38 <-filter(problemområde5, AISCode_38 <600000 & AISCode_38 >300000 & AIS_sev38>2 & AIS_sev38<7)
+    Penetrating_39 <-filter(problemområde5, AISCode_39 <600000 & AISCode_39 >300000 & AIS_sev39>2 & AIS_sev39<7)
+    Penetrating_40 <-filter(problemområde5, AISCode_40 <600000 & AISCode_40 >300000 & AIS_sev40>2 & AIS_sev40<7)
+    Penetrating_41 <-filter(problemområde5, AISCode_41 <600000 & AISCode_41 >300000 & AIS_sev41>2 & AIS_sev41<7)
+    Penetrating_42 <-filter(problemområde5, AISCode_42 <600000 & AISCode_42 >300000 & AIS_sev42>2 & AIS_sev42<7)
+    Penetrating_43 <-filter(problemområde5, AISCode_43 <600000 & AISCode_43 >300000 & AIS_sev43>2 & AIS_sev43<7)
+    Penetrating_44 <-filter(problemområde5, AISCode_44 <600000 & AISCode_44 >300000 & AIS_sev44>2 & AIS_sev44<7)
+    Penetrating_45 <-filter(problemområde5, AISCode_45 <600000 & AISCode_45 >300000 & AIS_sev45>2 & AIS_sev45<7)
+    Penetrating_46 <-filter(problemområde5, AISCode_46 <600000 & AISCode_46 >300000 & AIS_sev46>2 & AIS_sev46<7)
+    Penetrating_47 <-filter(problemområde5, AISCode_47 <600000 & AISCode_47 >300000 & AIS_sev47>2 & AIS_sev47<7)
+    Penetrating_48 <-filter(problemområde5, AISCode_48 <600000 & AISCode_48 >300000 & AIS_sev48>2 & AIS_sev48<7)
+    Penetrating_49 <-filter(problemområde5, AISCode_49 <600000 & AISCode_49 >300000 & AIS_sev49>2 & AIS_sev49<7)
+    Penetrating_50 <-filter(problemområde5, AISCode_50 <600000 & AISCode_50 >300000 & AIS_sev50>2 & AIS_sev50<7)
+
+    Penetrating_cohort <- Reduce(function(x, y) merge(x, y, all=TRUE),list(Penetrating_1, Penetrating_2, Penetrating_3, Penetrating_4, Penetrating_5, Penetrating_6, Penetrating_7, Penetrating_8, Penetrating_9, Penetrating_10,Penetrating_11, Penetrating_12, Penetrating_13, Penetrating_14,Penetrating_15,Penetrating_16, Penetrating_17, Penetrating_18, Penetrating_19, Penetrating_20, Penetrating_21, Penetrating_22, Penetrating_23, Penetrating_24, Penetrating_25, Penetrating_26, Penetrating_27, Penetrating_28, Penetrating_29, Penetrating_30,Penetrating_31, Penetrating_32, Penetrating_33, Penetrating_34, Penetrating_35,Penetrating_36, Penetrating_37, Penetrating_38, Penetrating_39, Penetrating_40,Penetrating_41, Penetrating_42, Penetrating_43, Penetrating_44, Penetrating_45,Penetrating_46, Penetrating_47, Penetrating_48, Penetrating_49, Penetrating_50))
+
+  Penetrating_cohort <- filter(Penetrating_cohort, inj_dominant == 2)
+
+  library(table1)
+
+                  label(Penetrating_cohort$NISS)              <- "New Injury Severity Score"
+                  label(Penetrating_cohort$pre_sbp_value)    <- "Pre Hospital Systolic BP"
+                  label(Penetrating_cohort$ed_sbp_value)     <- "Emergency Department Systolic BP"
+
+                  units(Penetrating_cohort$pre_sbp_value)  <- "mmHg"
+                  units(Penetrating_cohort$ed_sbp_value)   <- "mmHg"
+
+                  table1(~ + NISS + pre_sbp_value + ed_sbp_value, data=SevereTBI_cohort1)
+
+
+                
+
+```
+
+                  
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
