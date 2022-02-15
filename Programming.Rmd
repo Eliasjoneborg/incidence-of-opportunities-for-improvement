@@ -14,6 +14,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r}
 library(tidyr)
 
+library(tidyr)
+
 swetrau_scrambled <- read.csv("swetrau-scrambled.csv")
 problem_scrambled <- read.csv("problem-scrambled.csv")
 
@@ -41,7 +43,7 @@ AIS2 <- apply(AIS, c(1,2), getLastNumber)
 
 AIS2=as.data.frame(AIS2)
 
-#creating new datafram "AIS" with the variables AIS severity 1-50
+#creating new datafram "AIS2" with variables representing AIS severity(1-50) 
 
 names(AIS2) <- c('AIS_sev01', 'AIS_sev02', 'AIS_sev03', 'AIS_sev04', 'AIS_sev05', 'AIS_sev06', 'AIS_sev07', 'AIS_sev08', 'AIS_sev09', 'AIS_sev10',
                  'AIS_sev11', 'AIS_sev12', 'AIS_sev13', 'AIS_sev14', 'AIS_sev15', 'AIS_sev16', 'AIS_sev17', 'AIS_sev18', 'AIS_sev19',
@@ -51,6 +53,8 @@ names(AIS2) <- c('AIS_sev01', 'AIS_sev02', 'AIS_sev03', 'AIS_sev04', 'AIS_sev05'
                  'AIS_sev47', 'AIS_sev48', 'AIS_sev49', 'AIS_sev50')
 
 problemområde5<-cbind(problemområde4, AIS2)
+
+#add new variables as columns into dataframe
 
 #BLUNT MULTISYSTEM
 
@@ -442,8 +446,7 @@ library(dplyr)
     
     Incidence_test <- problemområde$Problemomrade_.FMP$Ankomst_te
     
-  
-    
+                
     
 ```
 
