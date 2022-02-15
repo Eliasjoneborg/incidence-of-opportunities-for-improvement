@@ -24,6 +24,14 @@ library(tidyr)
 swetrau_scrambled <- read.csv("swetrau-scrambled.csv")
 problem_scrambled <- read.csv("problem-scrambled.csv")
 
+## Överväg att köra "with" med ifelse, där du precicerar vilka som är "Yes" och reserande blir dåliga: exv
+## problem_scrambled$probYN <- with(problem_scrambled, ifelse(
+## `Problemomrade_ FMP` == "ok" |
+##  `Problemomrade_ FMP` == "OK" |
+##  `Problemomrade_ FMP` == "Ok" |
+##  `Problemomrade_ FMP` == "Föredömligt handlagd",
+##  "No", "Yes"))
+
 problem_scrambled$`Problemomrade_.FMP`[problem_scrambled$`Problemomrade_.FMP`=='ok'|problem_scrambled$`Problemomrade_.FMP`=='Ok'|problem_scrambled$`Problemomrade_.FMP`=='OK'|problem_scrambled$`Problemomrade_.FMP`=='Föredömligt handlagd']<-'No'
 problem_scrambled$`Problemomrade_.FMP`[problem_scrambled$`Problemomrade_.FMP`=='bristande rutin'|problem_scrambled$`Problemomrade_.FMP`=='Dokumentation'|
                                          problem_scrambled$`Problemomrade_.FMP`=='Dokumetation'|problem_scrambled$`Problemomrade_.FMP`=='Handläggning'|
@@ -43,6 +51,8 @@ library(dplyr)
 problemområde3<-problemområde2 %>% select(inj_dominant, pt_age_yrs, Problemomrade_.FMP, NISS, pre_sbp_value, pre_sbp_rtscat, ed_sbp_value, ed_sbp_rtscat, 151:201)
 
 problemområde4<-filter(problemområde3, NISS>15, NISS<76, pt_age_yrs >15, pt_age_yrs <120, inj_dominant >0, inj_dominant <3)
+
+## Detta är alltså kriterier för swetrau? Eg ska vi inte behöva filtrera detta då det redan ska vara gjort. Vi får disk nästa möte.
 
 #AIS-fix
 library(stringr)
