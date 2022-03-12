@@ -27,10 +27,28 @@ swetrau_problem<- merge(swetrau_scrambled, problem_area, by= "id", all.y = TRUE)
 
 library(dplyr)
 
-#JA: Överväg att byta 151:201 till ett vilkor för AIS, se tidigare kod för blunt multisystem
+### DATA CLEANING
 
-swetrau_select<-swetrau_problem %>% select(inj_dominant, pt_age_yrs, OFI, NISS, ed_gcs_sum, pre_intub_type, pre_sbp_value, pre_sbp_rtscat, ed_sbp_value, ed_sbp_rtscat, 151:201, Ankomst_te)
+# remove NA:s 
 
+#swetrau_problem$ed_sbp_value[swetrau_problem$ed_sbp_value == 999] = NA
+#swetrau_problem$ed_gcs_sum[swetrau_problem$ed_gcs_sum == 999] = NA
+#swetrau_problem$inj_dominant[swetrau_problem$inj_dominant == 999] = NA
+
+#na_omit_ed_sbp <-swetrau_problem[!is.na(swetrau_problem$ed_sbp_value),]
+#na_omit_sbp_gcs <- na_omit_ed_sbp[!is.na(na_omit_ed_sbp$ed_gcs_sum),]
+#na_omit_sbp_gcs_age <- na_omit_sbp_gcs[!is.na(na_omit_sbp_gcs$pt_age_yrs),]
+#na_omit_sbp_gcs_age_inj <- na_omit_sbp_gcs_age[!is.na(na_omit_sbp_gcs_age$inj_dominant),]
+
+
+#can be integrated in flowchart below
+#further data points, used in e.g. table one can be cleaned when the relevant variables are decided
+
+# significant loss of participants
+
+swetrau_select<-swetrau_problem %>% select(inj_dominant, pt_age_yrs, OFI, NISS, ed_gcs_sum, pre_intub_type, pre_sbp_value, pre_sbp_rtscat, ed_sbp_value, ed_sbp_rtscat, Ankomst_te, starts_with("AISCode"))
+
+### COHORT GROUPING ###
 
 #BLUNT MULTISYSTEM
 
@@ -89,40 +107,23 @@ swetrau_relevant$geriatric <- with(swetrau_relevant, ifelse(pt_age_yrs>65 & pt_a
 
 #PENETRATING
 
-# JA:Definition:  penetrating truncal injury with an AIS severity score of > 3 in the regions of the neck, chest, or abdomen? Så AIS ska ha första siffran 3-5. och i någon av dem ska vara AIS, alltså sista siffran vara >= 3.+ penetrerande som huvudskada. 
+vector_of_codes <- c(300452.6, 200082.2, 237192.6, 432121.1, 123321.2, 121331.5)
 
-#Vektor för att testa: 
-vector_of_codes <- c(161006.3, 541432.4, 377120.1) # Tipps, Skapa En fiktiv vektor med AIS-koder, byt manuellt för att testa dina funktioner. 
-neck_chest_abdomen_region(vector_of_codes)
-substr(as.character(vector_of_codes), 1, 1) # genererar en vector med första elementen, du vill ju veta om någon av dem är 3-5.
+#is.element() generates vector - true/false 
 
-is.element(substr(as.character(vector_of_codes), 1, 1),3:5) # True/false för respeketive element däremot!
-
-#neck_chest_abdomen_region <- function(code) {
- # code <- code[!is.na(code)]                     #Tidigare kod
-  #region <- substr(as.character(code), 1, 1)
-  #as.numeric(region) >= 3 && as.numeric(region)<=5
-#}
-
-#nedan genererar vektor True/false om det är korrekt region. 
 neck_chest_abdomen_region <- function(code) {
   code <- code[!is.na(code)]
   region <- substr(as.character(code), 1, 1)  
   is.element(region,3:5)
 }
- 
 
-#neck_chest_abdomen_region(code[serious_injury]) genererar en vektor True/false, (hoppar över alla skador som inte är AIS 3+) och säger om det är i rätt region. sum(neck_chest_abdomen_region(code[serious_injury]) == TRUE ) summerar alla gånger den vektorn är TRUE.
+#sum() adds up number of times a specific vector is presented
+
 serious_neck_chest_abdomen_injury <- function(code) {
   code <- code[!is.na(code)]
   serious_injury <- is_serious(code)
   sum(neck_chest_abdomen_region(code[serious_injury]) == TRUE )
 }
-
-vector_of_codes <- c(361006.1, 141432.5, 577120.3)#Testa och ändra AISkoderna och se hur funktionen byter output. 
-serious_neck_chest_abdomen_injury(vector_of_codes)
-
-#Ändrat nedan, nu vill vi att serious_neck_chest_abdomen_injury() är >= 1.
 
 swetrau_relevant$penetrating <- NA
 for (i in 1:nrow(swetrau_relevant)) {
@@ -134,14 +135,22 @@ for (i in 1:nrow(swetrau_relevant)) {
   }
 }
 
-# Need assistance diagnosing why this code doesn't perform as it is supposed to
 
 #SEVERE TBI
 
+AIS_1 <- c(300452.6, 200082.2, 237192.6, 432121.3, 123321.2)
+AIS_2 <- c(300322.1, 565232.1, 234145.2, 421441.1, 312131.1)
+AIS_3 <- c(100212.4, 531212.1, 223233.1, 321212.2, 232232.1)
+AIS_4 <- c(100212.4, 200212.3, 100212.1, 100212.2, 100212.2)
+AIS_5 <- c(100212.4, 100212.3, 100212.4, 100212.5, 100212.1)
+df_AIS_vector <- data.frame(AIS_1, AIS_2, AIS_3, AIS_4, AIS_5)
+
 head_region <- function(code) {
   region <- substr(as.character(code), 1, 1)
-  as.numeric(region) == 1
+  is.element(region, 1)
 }
+
+#returns true if body region == 1
 
 has_a_serious_head_injury <- function(code) {
   code <- code[!is.na(code)]
@@ -149,19 +158,26 @@ has_a_serious_head_injury <- function(code) {
   head_region(code[serious_injury]) 
 }
 
+#acts on vectors in "serious_injury", chooses those which have region == 1
+
 only_one_region <- function(code){
   number_of_regions(code) == 1
 }
 
-swetrau_relevant$gcs_below_9 <- NA
-swetrau_relevant$gcs_below_9 <- with(swetrau_relevant, ifelse(ed_gcs_sum<=8 | pre_intub_type==1, TRUE, FALSE))
-swetrau_relevant$gcs_below_9 <- with(swetrau_relevant, ifelse(is.na(gcs_below_9) | isFALSE(gcs_below_9), FALSE, TRUE))
+#chooses those with one region and returns TRUE/FALSE
 
 only_one_serious_injury_region <- function(code) {
   code <- code[!is.na(code)]
   serious_injury <- is_serious(code)
   only_one_region(code[serious_injury])
 }
+#starts with those with a serious injury and returns TRUE/FALSE depending on there being more than one unique region in entire row
+
+swetrau_relevant$gcs_below_9 <- NA
+swetrau_relevant$gcs_below_9 <- with(swetrau_relevant, ifelse(ed_gcs_sum<=8 | pre_intub_type==1, TRUE, FALSE))
+swetrau_relevant$gcs_below_9 <- with(swetrau_relevant, ifelse(is.na(gcs_below_9) | isFALSE(gcs_below_9), FALSE, TRUE))
+
+#makes new variable with those with a GCS <9 and those intubated in a prehospital setting. Converts NA to FALSE.
 
 swetrau_relevant$severe_tbi <- NA
 
@@ -173,11 +189,7 @@ if (has_a_serious_head_injury(swetrau_relevant[v, grepl("AISCode", names(swetrau
     swetrau_relevant[v,"severe_tbi"] <- FALSE
   }
 }
-
-#Not entirely sure that this does what it is supposed to do since there are only 4 "TRUE"s. The simulated data set does however not allow for many participants in this cohort as there are 30 AIS scores and only one has to be severe and in a non head region in order for the row to be excluded.
-
-
-
+#returns TRUE if row has serious head injury AND no serious injury in other body region
 
 
 ### COHORT DEMOGRAPHICS
@@ -221,70 +233,56 @@ severe_tbi_cohort <-filter(swetrau_relevant, severe_tbi == "TRUE")
 #Since cohorts are merged in a manner allowing for duplicates, the "overall" number will not match the total number of participants, but the sum of the cohorts. 
                   
                   
-                  
-                               
-                  
-### FLOWCHARTS
+### FLOWCHART
 
+ # Making data frame with nrow of relevant df:s to be used as reference in code below                 
+   a <- c(0,1)               
+   a$a <- nrow(problem_scrambled)   
+   a <- as.data.frame(a)
+   a$b <- nrow(problem_area)
+   a$c <- nrow(swetrau_relevant)
+   a$d <- nrow(blunt_multisystem_cohort)
+   a$e <- nrow(penetrating_cohort)
+   a$f <- nrow(severe_tbi_cohort)
+   a$g <- nrow(shock_cohort)
+   a$h <- nrow(geriatric_cohort)                      
                   
-#Testing two different flowchart types
-                  
-  #1
-                  
-library(PRISMAstatement)
-
-flow_exclusions(
-  incl_counts = c(nrow(problem_scrambled),nrow(problem_area), nrow(swetrau_relevant), nrow(blunt_multisystem_cohort), nrow(penetrating_cohort), nrow(geriatric_cohort), nrow(severe_tbi_cohort), nrow(shock_cohort)), 
-  percent_of_total = TRUE,
-  total_label = "Trauma care quality database",
-  incl_labels = c("Known problem area", "Study population", "Blunt multisystem" , "Penetrating" , "Geriatric" , "Severe TBI" , "Shock"  ),
-  excl_labels = c("Problem area data missing", "Dominant injury data missing", "Not eligible for blunt multisystem cohort", "Not eligible for penetrating cohort", "Not eligible for geriatric cohort", "Not eligible for severe TBI cohort","Not eligible for shock cohort" )
-)
-   
-# The output of this one is plain wrong atm           
-
-  #2 
-                  
-              
 library(DiagrammeR)
-                  
-grViz("digraph flowchart {
 
-      node [fontname = Helvetica, shape = rectangle]        
-      tab1 [label = '@@1']
-      tab2 [label = '@@2']
-      tab3 [label = '@@3']
-      tab4 [label = '@@4']
-      tab5 [label = '@@5']
-      tab6 [label = '@@6']
-      tab7 [label = '@@7']
-      tab8 [label = '@@8']
+DiagrammeR::grViz("
+digraph graph2 {
 
-      tab1 -> tab2
-      tab2 -> tab3 
-      tab3 -> tab4
-      tab3 -> tab5
-      tab3 -> tab6
-      tab3 -> tab7
-      tab3 -> tab8
-      }
+graph [layout = dot]
 
-      [1]: 'Trauma care quality database n=12099'
-      [2]: 'Known problem area n=11522 '
-      [3]: 'Known dominant injury n=7326'
-      [4]: 'Blunt multisystem n=3296'
-      [5]: 'Geriatric n=2053'
-      [6]: 'Penetrating n=2024'
-      [7]: 'Severe TBI n=2417'
-      [8]: 'Shock n=1656'
-      ")   
-
-# This one requires me to input numbers manually         
-
-# I like aspects of both flowchart models, looking for a way to modulate one of them to work more like the other.
+node [shape = rectangle, width = 4, fillcolor = Biege]
+a [label = '@@1']
+b [label = '@@2']
+c [label = '@@3']
+d [label = '@@4']
+e [label = '@@4']
+f [label = '@@5']
+g [label = '@@6']
+h [label = '@@7']
 
 
+a -> b -> c -> d 
+c -> e
+c -> f
+c -> g
+c -> h
+          
+}
 
+[1]: paste0('Trauma care quality database (n = ', a$a, ')')
+[2]: paste0('Known problem area (n = ', a$b, ')')
+[3]: paste0('Known dominant injury (n = ', a$c, ')')
+[4]: paste0('Blunt multisystem (n = ', a$d, ')')
+[5]: paste0('Penetrating (n = ', a$e, ')')
+[6]: paste0('Severe TBI (n = ', a$f, ')')
+[7]: paste0('Shock (n = ', a$g, ')')
+[8]: paste0('Geriatric (n = ', a$h, ')')
+
+")
 
 
 #### INCIDENCE
@@ -313,9 +311,9 @@ swetrau_relevant$date <- as.Date(swetrau_relevant$date)
 
 dat <- swetrau_relevant$date
 
-# Use of incidence package to calculate incidence in the group as a whole by month 
+# Use of incidence package to calculate incidence in the group as a whole by year 
 
-incidence_OFI <- incidence(dat, interval = "month", groups = swetrau_relevant$OFI)
+incidence_OFI <- incidence(dat, interval = "year", groups = swetrau_relevant$OFI)
 library(scales)
 library(ggplot2)
 plot(incidence_OFI, stack = TRUE, border = "grey")
@@ -324,7 +322,7 @@ plot(incidence_OFI, stack = TRUE, border = "grey")
 
 
 
-### TOTAL MONTHLY INCIDENCE OF OFI
+### TOTAL YEARLY INCIDENCE OF OFI
 
 
 merged_cohorts$date <-paste(get_year(merged_cohorts$Ankomst_te), get_month(merged_cohorts$Ankomst_te), get_day(merged_cohorts$Ankomst_te), sep = "-")
@@ -333,17 +331,17 @@ merged_cohorts$date <- as.Date(merged_cohorts$date)
 
 arrival_date <- merged_cohorts$date
 
-incidence_OFI_1 <- incidence(arrival_date, interval = "month", groups = merged_cohorts$OFI)
+incidence_OFI_1 <- incidence(arrival_date, interval = "year", groups = merged_cohorts$OFI)
 
 incidence_OFI_1 <- as.data.frame(incidence_OFI_1)
 
-incidence_OFI_1$tot_monthly_incidence <- incidence_OFI_1$"Opportunities for Improvement" / (incidence_OFI_1$"Opportunities for Improvement" + incidence_OFI_1$"Case well handled") * 100
+incidence_OFI_1$tot_yearly_incidence <- incidence_OFI_1$"Opportunities for Improvement" / (incidence_OFI_1$"Opportunities for Improvement" + incidence_OFI_1$"Case well handled") * 100
 
 
 
 
 
-### COHORT MONTHLY INCIDENCE OF OFI
+### COHORT YEARLY INCIDENCE OF OFI
 
 
 ## Blunt
@@ -352,13 +350,13 @@ blunt_multisystem_cohort$date <-paste(get_year(blunt_multisystem_cohort$Ankomst_
 
 blunt_multisystem_cohort$date <- as.Date(blunt_multisystem_cohort$date)
 
-blunt_month <- blunt_multisystem_cohort$date
+blunt_year <- blunt_multisystem_cohort$date
 
-blunt_incidence_OFI <- incidence(blunt_month, interval = "month", groups = blunt_multisystem_cohort$OFI)
+blunt_incidence_OFI <- incidence(blunt_year, interval = "year", groups = blunt_multisystem_cohort$OFI)
 
 blunt_incidence_OFI <- as.data.frame(blunt_incidence_OFI)
 
-blunt_incidence_OFI$blunt_monthly_incidence <- blunt_incidence_OFI$"Opportunities for Improvement" / (blunt_incidence_OFI$"Opportunities for Improvement" + blunt_incidence_OFI$"Case well handled") * 100
+blunt_incidence_OFI$blunt_yearly_incidence <- blunt_incidence_OFI$"Opportunities for Improvement" / (blunt_incidence_OFI$"Opportunities for Improvement" + blunt_incidence_OFI$"Case well handled") * 100
 
 ## Penetrating
 
@@ -366,13 +364,13 @@ penetrating_cohort$date <-paste(get_year(penetrating_cohort$Ankomst_te), get_mon
 
 penetrating_cohort$date <- as.Date(penetrating_cohort$date)
 
-penetrating_month <- penetrating_cohort$date
+penetrating_year <- penetrating_cohort$date
 
-penetrating_incidence_OFI <- incidence(penetrating_month, interval = "month", groups = penetrating_cohort$OFI)
+penetrating_incidence_OFI <- incidence(penetrating_year, interval = "year", groups = penetrating_cohort$OFI)
 
 penetrating_incidence_OFI <- as.data.frame(penetrating_incidence_OFI)
 
-penetrating_incidence_OFI$penetrating_monthly_incidence <- penetrating_incidence_OFI$"Opportunities for Improvement" / (penetrating_incidence_OFI$"Opportunities for Improvement" + penetrating_incidence_OFI$"Case well handled") * 100
+penetrating_incidence_OFI$penetrating_yearly_incidence <- penetrating_incidence_OFI$"Opportunities for Improvement" / (penetrating_incidence_OFI$"Opportunities for Improvement" + penetrating_incidence_OFI$"Case well handled") * 100
 
 ## Severe TBI
 
@@ -380,18 +378,14 @@ severe_tbi_cohort$date <-paste(get_year(severe_tbi_cohort$Ankomst_te), get_month
 
 severe_tbi_cohort$date <- as.Date(severe_tbi_cohort$date)
 
-severe_tbi_month <- severe_tbi_cohort$date
+severe_tbi_year <- severe_tbi_cohort$date
 
-severe_tbi_incidence_OFI <- incidence(severe_tbi_month, interval = "month", groups = severe_tbi_cohort$OFI)
+severe_tbi_incidence_OFI <- incidence(severe_tbi_year, interval = "year", groups = severe_tbi_cohort$OFI)
 
 severe_tbi_incidence_OFI <- as.data.frame(severe_tbi_incidence_OFI)
+severe_tbi_incidence_OFI$"Case well handled" <- 0
 
-get_monthly_incidence_TBI<- function(x){
-TBI_incidence <- (x) / (severe_tbi_incidence_OFI$"Opportunities for Improvement" + severe_tbi_incidence_OFI$"Case well handled") * 100
- return(TBI_incidence)
-}
-
-#severe_tbi_incidence_OFI$severe_tbi_monthly_incidence <-get_monthly_incidence_TBI(severe_tbi_incidence_OFI$"Opportunities for Improvement")
+severe_tbi_incidence_OFI$severe_tbi_yearly_incidence <- severe_tbi_incidence_OFI$"Opportunities for Improvement" / (severe_tbi_incidence_OFI$"Opportunities for Improvement" + severe_tbi_incidence_OFI$"Case well handled") * 100
 
 
 ## Geriatric
@@ -400,13 +394,13 @@ geriatric_cohort$date <-paste(get_year(geriatric_cohort$Ankomst_te), get_month(g
 
 geriatric_cohort$date <- as.Date(geriatric_cohort$date)
 
-geriatric_month <- geriatric_cohort$date
+geriatric_year<- geriatric_cohort$date
 
-geriatric_incidence_OFI <- incidence(geriatric_month, interval = "month", groups = geriatric_cohort$OFI)
+geriatric_incidence_OFI <- incidence(geriatric_year, interval = "year", groups = geriatric_cohort$OFI)
 
 geriatric_incidence_OFI <- as.data.frame(geriatric_incidence_OFI)
 
-geriatric_incidence_OFI$geriatric_monthly_incidence <- geriatric_incidence_OFI$"Opportunities for Improvement" / (geriatric_incidence_OFI$"Opportunities for Improvement" + geriatric_incidence_OFI$"Case well handled") * 100
+geriatric_incidence_OFI$geriatric_yearly_incidence <- geriatric_incidence_OFI$"Opportunities for Improvement" / (geriatric_incidence_OFI$"Opportunities for Improvement" + geriatric_incidence_OFI$"Case well handled") * 100
 
 ## Shock
 
@@ -414,13 +408,13 @@ shock_cohort$date <-paste(get_year(shock_cohort$Ankomst_te), get_month(shock_coh
 
 shock_cohort$date <- as.Date(shock_cohort$date)
 
-shock_month <- shock_cohort$date
+shock_year <- shock_cohort$date
 
-shock_incidence_OFI <- incidence(shock_month, interval = "month", groups = shock_cohort$OFI)
+shock_incidence_OFI <- incidence(shock_year, interval = "year", groups = shock_cohort$OFI)
 
 shock_incidence_OFI <- as.data.frame(shock_incidence_OFI)
 
-shock_incidence_OFI$shock_monthly_incidence <- shock_incidence_OFI$"Opportunities for Improvement" / (shock_incidence_OFI$"Opportunities for Improvement" + shock_incidence_OFI$"Case well handled") * 100
+shock_incidence_OFI$shock_yearly_incidence <- shock_incidence_OFI$"Opportunities for Improvement" / (shock_incidence_OFI$"Opportunities for Improvement" + shock_incidence_OFI$"Case well handled") * 100
 
 
 
@@ -437,7 +431,7 @@ merged_cohorts_2$date <-paste(get_year(merged_cohorts_2$Ankomst_te), get_month(m
 
 date <- merged_cohorts_2$date
 
-cohort_incidence_OFI <-incidence(date, interval = "month", groups = merged_cohorts_2$Cohort)
+cohort_incidence_OFI <-incidence(date, interval = "year", groups = merged_cohorts_2$Cohort)
 
 plot(cohort_incidence_OFI)
 
@@ -447,7 +441,7 @@ plot(cohort_incidence_OFI)
 
 
 
-### TOTAL CUMULATIVE INCIDENCE (month)
+### TOTAL CUMULATIVE INCIDENCE (year)
 
 
 incidence_percentage_OFI  <- as.data.frame(incidence_OFI)
@@ -470,10 +464,10 @@ incidence_percentage_OFI <- transform(incidence_percentage_OFI, cum_inc = cumsum
 
 
 
-### COHORT CUMULATIVE INCIDENCE (month)
+### COHORT CUMULATIVE INCIDENCE (year)
 
 
-cohort_incidence_OFI <- incidence(date, interval = "month", groups = merged_cohorts_2$Cohort)
+cohort_incidence_OFI <- incidence(date, interval = "year", groups = merged_cohorts_2$Cohort)
 
 cohort_incidence_OFI <- as.data.frame(cohort_incidence_OFI)
 
@@ -545,22 +539,74 @@ cohort_incidence_OFI <- transform(cohort_incidence_OFI, shock_cum_inc = cumsum(s
 
 ### MERGING OF RESULTS INTO SINGLE DF
 
-# Need to merge the results in a better way, but have labeled the "date" variable differently and need to change that before. 
+shock_incidence_OFI<- shock_incidence_OFI %>% select(dates, shock_yearly_incidence)
+blunt_incidence_OFI<- blunt_incidence_OFI %>% select(dates, blunt_yearly_incidence)
+penetrating_incidence_OFI<- penetrating_incidence_OFI %>% select(dates, penetrating_yearly_incidence)
+geriatric_incidence_OFI<- geriatric_incidence_OFI %>% select(dates, geriatric_yearly_incidence)
+severe_tbi_incidence_OFI <- severe_tbi_incidence_OFI %>% select(dates, severe_tbi_yearly_incidence)
+incidence_percentage_OFI<- incidence_percentage_OFI %>% select(dates, cum_inc)
+incidence_OFI_1 <-incidence_OFI_1 %>% select(dates, tot_yearly_incidence)
 
 merged_incidence_table <- Reduce(function(x, y) merge(x, y, all=TRUE),
-                                     list(cohort_incidence_OFI, incidence_percentage_OFI, incidence_OFI_1, blunt_incidence_OFI, penetrating_incidence_OFI, geriatric_incidence_OFI, geriatric_incidence_OFI))
+                                     list(incidence_OFI_1, blunt_incidence_OFI, penetrating_incidence_OFI, severe_tbi_incidence_OFI, geriatric_incidence_OFI, shock_incidence_OFI, cohort_incidence_OFI, incidence_percentage_OFI, by = "dates"))
 
+
+merged_incidence_table <-subset(merged_incidence_table, select = -c(Blunt.multisystem, Geriatric, Penetrating, Severe.TBI, Shock, blunt_OFI_percentage, pen_OFI_percentage, TBI_OFI_percentage, ger_OFI_percentage, shock_OFI_percentage, y))
+
+merged_incidence_table$severe_tbi_yearly_incidence[is.na(merged_incidence_table$severe_tbi_yearly_incidence)] = 0
+# temporary condition
 
 
 
 
 ### PLOTTING AND TABULATION
 
-# Linear regression test "blunt"
+library("reshape2")
+library(ggplot2)
+library("ggthemes")
 
-plot(blunt_cum_inc ~ dates, data = cohort_incidence_OFI)
+#Yearly incidence as %
+plot_inc_year <- merged_incidence_table %>% select(dates, tot_yearly_incidence, blunt_yearly_incidence, penetrating_yearly_incidence, severe_tbi_yearly_incidence, geriatric_yearly_incidence, shock_yearly_incidence)
 
-lm_blunt <- lm(blunt_cum_inc ~ dates, data = cohort_incidence_OFI)
+plot_inc_year_long <- melt(plot_inc_year, id.vars = "dates")
+
+ggplot(plot_inc_year_long,
+       aes(x=dates,
+           y=value,
+           col = variable)) + 
+  geom_line(size = 1.0, alpha = 1.0) +
+  labs(title = "Yearly incidence of OFI in the KUH trauma care quality database",
+       x = "Year",
+       y = "%") +
+  theme_minimal() +
+  theme(axis.title = element_text())
+
+#Cumulative incidence
+plot_cum_inc<-merged_incidence_table %>% select(dates, cum_inc, blunt_cum_inc, pen_cum_inc, TBI_cum_inc, ger_cum_inc, shock_cum_inc)
+
+plot_cum_inc_long <- melt(plot_cum_inc, id.vars = "dates")
+
+ggplot(plot_cum_inc_long,
+       aes(x=dates,
+           y=value,
+           col = variable)) + 
+  geom_line(size = 1.0, alpha = 1.0) +
+  labs(title = "Cumulative incidence of OFI in the KUH trauma care quality database by year",
+       x = "Year",
+       y = "% of total") +
+  theme_minimal() +
+  theme(axis.title = element_text())
+
+
+
+
+### HISTOGRAM CONTAINING YEARLY M&M PARTICIPANTS AS % OF YEARLY SWETRAU PARTICIPANTS
+
+swetrau_scrambled_date <-substr(as.character(swetrau_scrambled$DateTime_ArrivalAtHospital),1,10)
+
+
+
+
 
 ```
 
