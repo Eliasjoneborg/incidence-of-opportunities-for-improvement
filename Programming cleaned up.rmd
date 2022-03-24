@@ -36,9 +36,9 @@ fewer_variables$ed_sbp_rtscat[fewer_variables$ed_sbp_rtscat == 999] = NA
 fewer_variables$ed_gcs_sum[fewer_variables$ed_gcs_sum == 999] = NA
 fewer_variables$inj_dominant[fewer_variables$inj_dominant == 999] = NA
 
-
-
 ### COHORT GROUPING ###
+
+## The functions below expect a row of AIS codes as input
 
 #BLUNT MULTISYSTEM
 is_serious <- function(code) {
@@ -58,7 +58,12 @@ has_more_than_one_serious_injury <- function(code) {
   serious_injury <- is_serious(code)
   number_of_regions(code[serious_injury]) >= 2
 }
-#combining them
+
+## combining them
+blunt.multisystem <- apply(fewer_variables[1:100, ], 1, function(row) {
+    code <- row[grep("AISCode", names(row))]
+    row
+})
 
 fewer_variables$blunt_multisystem <- NA
 #creating column blunt_multisystem
@@ -76,6 +81,12 @@ for (i in 1:nrow(known_dominant_injury)) {
 }
 #blunt multisystem <- TRUE/FALSE 
 
+## The above for loop could be replaced with the more R:ish apply function below, which is substantially faster (at least on my low performing machine)
+
+known_dominant_injury$blunt_multisystem <- apply(known_dominant_injury, 1, function(row) {
+    code <- row[grep("AISCode", names(row))] 
+    has_more_than_one_serious_injury(code) && row["inj_dominant"] == "1"
+})
 
 #SHOCK
 bp_is_na <- with(fewer_variables, is.na(ed_sbp_rtscat) & is.na(ed_sbp_value))    
@@ -90,12 +101,10 @@ known_blood_pressure$ed_sbp_below_90 <- with(known_blood_pressure, ifelse(ed_sbp
 known_blood_pressure$shock <- with(known_blood_pressure, ifelse(ed_sbp_below_90 == TRUE | ed_sbp_rtscat <= 3, TRUE, FALSE))
 #creating column for bp<90 with TRUE/FALSE
 
-
 #GERIATRIC
 known_age <- fewer_variables
 known_age$geriatric <- with(fewer_variables, ifelse(pt_age_yrs>65 & pt_age_yrs<120, TRUE, FALSE))
 #creating column in new df with TRUE/FALSE
-
 
 #PENETRATING
 neck_chest_abdomen_region <- function(code) {
@@ -180,11 +189,7 @@ if (has_a_serious_head_injury(known_gcs_or_intub_type[v, grepl("AISCode", names(
 
 ### This only returns 2 TRUE's. I think it is an artefact of the simulated data, namely the sheer number of AIS codes.
 
-
-
-
-
-###COHORT DEMOGRAPHICS
+## COHORT DEMOGRAPHICS
 
 blunt_multisystem_cohort <- filter(known_dominant_injury, blunt_multisystem == "TRUE")
 shock_cohort <- filter(known_blood_pressure, shock == "TRUE")
@@ -254,7 +259,7 @@ a -> b -> c -> d -> e -> f
    a$h <- nrow(geriatric_cohort)           
   #df with nrow of relevant df:s to be used as reference in code below 
    
-   DiagrammeR::grViz("
+DiagrammeR::grViz("
 digraph graph2 {
 
 graph [layout = dot]
@@ -288,8 +293,7 @@ c -> h
 [8]: paste0('Geriatric (n = ', a$h, ')')
 
 ")
-   
-   
+
    
 ### GROUPING AND EXCLUSION TABLE
    
@@ -387,7 +391,7 @@ tot_incidence_ofi <- incidence(fewer_variables$date, interval = "year", groups =
 tot_incidence_ofi <- as.data.frame(tot_incidence_ofi)
 #make into df
 
-tot_incidence_ofi$tot_yearly_incidence <- tot_incidence_ofi$"YES" / (tot_incidence_ofi$"YES" + tot_incidence_ofi$"NO") * 100
+tot_incidence_ofi$tot_yearly_incidence <- tot_incidence_ofi$YES / (tot_incidence_ofi$YES + tot_incidence_ofi$NO) * 100
 #calculate OFI as percentage of total blunt multisystem cases the same year
 
 
