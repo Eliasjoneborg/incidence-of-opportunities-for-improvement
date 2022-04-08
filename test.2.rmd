@@ -3,11 +3,13 @@ title: "Results"
 output:
   bookdown::pdf_document2:
     toc: false
+ 
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include=FALSE }
 #Necessary packages
 library(dplyr)
+library(float)
 library(plyr)
 library(incidence)
 library(scales)
@@ -19,6 +21,7 @@ library(table1)
 library(jtools)
 library(ggstance)
 library(lubridate)
+library(grid)
 
 library("keyring")
 library("DBI")
@@ -110,6 +113,7 @@ fewer_variables<-age_over_14 %>% select(id, inj_dominant, res_survival, pt_age_y
 fewer_variables$ed_sbp_value[fewer_variables$ed_sbp_value == 999] = NA
 fewer_variables$ed_sbp_rtscat[fewer_variables$ed_sbp_rtscat == 999] = NA
 fewer_variables$ed_gcs_sum[fewer_variables$ed_gcs_sum == 999] = NA
+fewer_variables$ed_gcs_sum[fewer_variables$ed_gcs_sum == 99] = NA
 fewer_variables$inj_dominant[fewer_variables$inj_dominant == 999] = NA
 
 fewer_variables$Gender[fewer_variables$Gender == "M"] = "Male"
@@ -180,6 +184,8 @@ known_blood_pressure$ed_sbp_value[is.na(known_blood_pressure$ed_sbp_value)]<-999
 known_blood_pressure$ed_sbp_below_90 <- with(known_blood_pressure, ifelse(ed_sbp_value>=0 & known_blood_pressure$ed_sbp_value<=90, TRUE, FALSE))
 known_blood_pressure$shock <- with(known_blood_pressure, ifelse(ed_sbp_below_90 == TRUE | ed_sbp_rtscat <= 3, TRUE, FALSE))
 #creating column for bp<90 with TRUE/FALSE
+
+known_blood_pressure$ed_sbp_value[(known_blood_pressure$ed_sbp_value == 999 )]<-NA
 
 #GERIATRIC
 known_age <- fewer_variables
@@ -380,18 +386,14 @@ d->i
 [5]: paste0('Blunt multisystem (n = ', a$e, ')')
 [6]: paste0('Penetrating (n = ', a$f, ')')
 [7]: paste0('Severe TBI (n = ', a$g, ')')
-[8]: paste0('Geriatric (n = ', a$h, ')')
-[9]: paste0('Shock (n = ', a$i, ')')
-
-
-", height = "250") 
-%>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("swetrau_flowchart.pdf")
+[8]: paste0('Shock (n = ', a$i, ')')
+[9]: paste0('Geriatric (n = ', a$h, ')')", height = "500") %>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("exclusion_flowchart.pdf")   
 
    
 #### GROUPING AND EXCLUSION TABLE
    
 Cohort <- c("Blunt multisystem", "Penetrating", "Severe TBI", "Shock", "Geriatric")
-Category <- c("Dominant injury", "Dominant injury", "ED GCS", "ED SBP", "Age")
+Category <- c("Dominant injury type", "Dominant injury type", "ED GCS", "ED SBP", "Age")
 Missing <- c((nrow(fewer_variables)-nrow(known_dominant_injury)),(nrow(fewer_variables)-nrow(known_dominant_injury)), (nrow(fewer_variables)-nrow(known_gcs_or_intub_type)), (nrow(fewer_variables)-nrow(known_blood_pressure)), (nrow(fewer_variables)-nrow(known_age)))
 Missing_as_percent <- c( round(((nrow(fewer_variables)-nrow(known_dominant_injury))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_dominant_injury))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_gcs_or_intub_type))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_blood_pressure))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_age))/nrow(fewer_variables)*100), digits = 2))
    
@@ -399,7 +401,7 @@ Exclusion_table <- data.frame(Cohort, Category, Missing, Missing_as_percent)
 Exclusion_table
 
 
-
+table(merged_cohorts$ed_gcs_sum)
  #### PATIENT DEMOGRAPHICS 
 
                   merged_cohorts$res_survival <- with(merged_cohorts, ifelse(res_survival== "1", "Dead", "Alive"))
@@ -407,7 +409,7 @@ Exclusion_table
                   render.continuous.default(merged_cohorts$NISS)
                   merged_cohorts$pt_age_yrs<- as.numeric(merged_cohorts$pt_age_yrs)
                   render.continuous.default(merged_cohorts$pt_age_yrs)
-                  merged_cohorts$pt_age_yrs<- as.numeric(merged_cohorts$ed_gcs_sum)
+                  merged_cohorts$ed_gcs_sum<- as.numeric(merged_cohorts$ed_gcs_sum)
                   render.continuous.default(merged_cohorts$ed_gcs_sum)
   
                   label(merged_cohorts$NISS)              <- "NISS"
@@ -424,7 +426,7 @@ Exclusion_table
                   units(merged_cohorts$pt_age_yrs)    <-"years"
                   
 
-                  pt_demographics <- table1(~ OFI + pt_age_yrs + Gender + ed_gcs_sum  + ed_sbp_value + NISS + res_survival | Cohort, data=merged_cohorts, caption = "<strong>Table 2: Demographics</strong>", overall = FALSE)
+                  pt_demographics <- table1(~ OFI + pt_age_yrs + Gender + ed_gcs_sum  + ed_sbp_value + NISS + res_survival | Cohort, data=merged_cohorts, caption="\\textbf{Demographics}", overall = FALSE)
                   
                   
                   
@@ -518,19 +520,24 @@ incidence.data<- ddply(incidence.data,"dates",numcolwise(sum))
 #### PLOTTING INCIDENCE AND CUMULATIVE INCIDENCE
 
 #Yearly incidence as %
-plot_inc_year <- incidence.data %>% select(dates, incidence_ger, incidence_pen, incidence_blu, incidence_sho, incidence_tbi, incidence_all)
+plot_inc_year <- incidence.data %>% select(dates, incidence_blu, incidence_pen, incidence_blu, incidence_sho, incidence_ger, incidence_all)
 
 plot_inc_year_long <- melt(plot_inc_year, id.vars = "dates")
 #melt as to enable ggplot to work
+
+library(gridExtra)
+library(grid)
+
+
 
 incidence_plot <- ggplot(plot_inc_year_long,
        aes(x=dates,
            y=value,
            col = variable)) + 
-  scale_color_discrete(name = "Cohort", labels = c("Geriatric", "Penetrating", "Blunt multisystem", "Shock","Severe TBI", "Overall")) +
+  scale_color_discrete(name = "Cohort", labels = c("Blunt multisystem", "Penetrating", "Severe TBI", "Shock","Geriatric", "Overall")) +
   geom_line(size = 1.0, alpha = 1.0) +
   labs(x = "Year",
-       y = "% of reviewed previous 6 months") +
+       y = "%") +
   theme_tufte() +
   theme(axis.title = element_text(), legend.title = element_blank()) 
 
@@ -538,7 +545,7 @@ incidence_plot <- ggplot(plot_inc_year_long,
 
 
 #Cumulative incidence
-plot_cum_inc<-cumulative.incidence.data %>% select(dates, cum_inc_ger, cum_inc_pen, cum_inc_blu, cum_inc_sho, cum_inc_tbi, cum_inc_all)
+plot_cum_inc<-cumulative.incidence.data %>% select(dates, cum_inc_blu, cum_inc_pen, cum_inc_tbi, cum_inc_sho, cum_inc_ger, cum_inc_all)
 
 plot_cum_inc_long <- melt(plot_cum_inc, id.vars = "dates")
 
@@ -546,10 +553,10 @@ cum_incidence_plot<- ggplot(plot_cum_inc_long,
        aes(x=dates,
            y=value,
            col = variable)) +
-  scale_color_discrete(name = "Cohort", labels = c("Geriatric", "Penetrating", "Blunt multisystem", "Shock","Severe TBI", "Overall")) +
+  scale_color_discrete(name = "Cohort", labels = c("Blunt multisystem", "Penetrating", "Severe TBI", "Shock","Geriatric", "Overall")) +
   geom_line(size = 1.0, alpha = 1.0) +
   labs(x = "Year",
-       y = "% of total") +
+       y = "%") +
   theme_tufte() +
   theme(axis.title = element_text(), legend.title = element_blank())
 
@@ -564,10 +571,8 @@ calculate_incidence_trends <- function(cohort) {
      return (trend)
 }
 
-incidence_data$geriatric_cohort %>% model(lm=TSLM())
-
 incidence.trends <- lapply(incidence_data, calculate_incidence_trends)
- 
+
 
 penetrating_incidence_trend <- incidence.trends$penetrating[c(2), ] 
 geriatric_incidence_trend <- incidence.trends$geriatric[c(2), ] 
@@ -584,7 +589,7 @@ shock_incidence_trend$cohort <- "Shock"
 overall_incidence_trend$cohort <- "Overall"
 
 incidence_trend_table <- Reduce(function(x, y) merge(x, y, all=TRUE),
-                                     list(penetrating_incidence_trend, geriatric_incidence_trend, tbi_incidence_trend, blunt_incidence_trend, shock_incidence_trend, overall_incidence_trend))
+                                     list(blunt_incidence_trend, penetrating_incidence_trend, tbi_incidence_trend, shock_incidence_trend, geriatric_incidence_trend, overall_incidence_trend))
 
 library(dplyr)
 library(readxl)
@@ -615,9 +620,11 @@ FitFlextableToPage <- function(ft, pgwidth = 6){
   return(ft_out)
 }
 
-pt_demographics_kable<- t1kable(pt_demographics)
 
+max_percent_dead <- c(nrow(filter(severe_tbi_cohort, res_survival == 1))) / c(nrow(severe_tbi_cohort)) * 100
+second_max_percent_dead <- c(nrow(filter(shock_cohort, res_survival == 1))) / c(nrow(shock_cohort)) * 100
 
+percent_male <- c(nrow(filter(fewer_variables, Gender == "Male"))) / c(nrow(fewer_variables)) * 100
 
 
 ```
@@ -625,98 +632,88 @@ pt_demographics_kable<- t1kable(pt_demographics)
 
 
 ## Participants 
-Over the pre-specified study period, `r nrow(datasets$problem)` patients were included in the the KUH trauma care quality database and subsequently in this study. Of those, `r nrow(fewer_variables)` (`r round(nrow(fewer_variables)/nrow(datasets$problem)*100, digits=2)`%) patients were aged >14, had sufficient data on our outcome measure and went on to form the study population (see Figure 1). Participants were then divided into the cohorts blunt multisystem (n=`r nrow(blunt_multisystem_cohort)`), geriatric (n=`r nrow(geriatric_cohort)`), penetrating (n= `r nrow(penetrating_cohort)`), severe TBI (n=`r nrow(severe_tbi_cohort)`) and shock (n=`r  nrow(shock_cohort)`). `r Exclusion_table$Missing[3]` patients lacked data about emergency department gcs and `r Exclusion_table$Missing[4]` patients lacked data about emergency department blood pressure. No patients lacked data about dominant injury type or age (see Table 1).
+Over the pre-specified study period, `r nrow(datasets$problem)` patients were included in the the KUH trauma care quality database. Of those, `r nrow(fewer_variables)` (`r round(nrow(fewer_variables)/nrow(datasets$problem)*100, digits=1)`%) patients were aged 14 or above and had sufficient data regarding OFI (see figure \@ref(fig:exclusion-flowchart)). The blunt multisystem cohort was comprised of `r nrow(blunt_multisystem_cohort)` patients; penetrating of `r nrow(penetrating_cohort)` patients; severe TBI of `r nrow(severe_tbi_cohort)` patients; shock of `r  nrow(shock_cohort)` patients and geriatric of `r nrow(geriatric_cohort)` patients. Four categories of data were necessary for grouping: emergency department gcs and systolic blood pressure, dominant injury type (blunt or penetrating) and age. `r Exclusion_table$Missing[3]` patients lacked data about emergency department gcs and `r Exclusion_table$Missing[4]` patients lacked data about emergency department blood pressure. No patients lacked data about dominant injury type  or age (see Table \@ref(tab:exclusion-table)).
 
-```{r swetrau-flowchart, echo=FALSE, fig.cap="SweTrau flowchart", out.width="50%", fig.align="center"}
-knitr::include_graphics("swetrau_flowchart.pdf")
+```{r exclusion-flowchart, echo=FALSE, fig.cap="\\textbf{Exclusion flowchart.} Excluded are all patients patients treated between 2013 and 2017, as they systematically lack data about OFI. Furthermore, excluded are patients aged 14 and below. \\emph{TBI: traumatic brain injury.}", out.width="100%", fig.align="center"}
+knitr::include_graphics("exclusion_flowchart.pdf")
 ```
 
 
-**Figure 1: Exclusion flowchart.** Excluded are all patients patients treated between 2013 and 2017, as they systematically lack data about OFI in addition to other relevant data points. Furthermore, excluded are patients aged 14 and below. TBI: traumatic brain injury.
 
-
-
-
-
-```{r echo=FALSE, warning=FALSE, message = FALSE}
+```{r exclusion-table, echo=FALSE, warning=FALSE, message = FALSE}
 library(kableExtra)
 
 Exclusion_table %>%
-   kbl(caption = "<strong>Missing data by cohort.</strong> In table 1, the variable ´Category´ refers to the category of data required to group patients into a specified cohort. `Missing` refers to the number of patients lacking sufficient data in said category", col.names = c("Cohort","Type",
+   kbl(caption = "\\textbf{Missing data by cohort.} In table 1, the variable \\emph{Type} refers to the category of data required to group patients into a specified cohort. \\emph{Missing} refers to the number of patients lacking sufficient data in said category", col.names = c("Cohort","Type",
                            "Missing",
                            "%")) %>%
   kable_classic_2(html_font = "Cambria") %>%
   row_spec(0, bold= TRUE) %>%
-  kable_styling(latex_options = "HOLD_position", full_width = F, position = "left")
+  kable_styling(latex_options = "HOLD_position", full_width = F, position = "center")
 
 incidence.data$numbers <- c(1:9)
 model <- lm(incidence_blu ~ numbers, data=incidence.data)
 
 
 ```
-ED SBP: emergency department systolic blood pressure, ED GCS: emergency department Glasgow coma scale.
+*ED SBP: emergency department systolic blood pressure, ED GCS: emergency department Glasgow coma scale sum.*
  
 ## Descriptive data
-Table 2 presents patient demographics in the trauma cohorts. The cohorts exhibited differences regarding OFI, age, sex, injury severity score, emergency department systolic BP, emergency department GCS and 30-day mortality. The cohort with the highest percentage of OFI was `r colnames(cum_inc)[apply(cum_inc,1,which.max)]` with `r round(max(cum_inc), digits=2)`%. The cohort with the lowest percentage of OFI was `r colnames(cum_inc)[apply(cum_inc,1,which.min)]` with `r round(min(cum_inc), digits=2)`%.
+Table \@ref(tab:descriptive-table) presents patient demographics in the trauma cohorts. The `r colnames(cum_inc)[apply(cum_inc,1,which.max)]` cohort had the highest percentage of OFI with `r round(max(cum_inc), digits=1)`% and the`r colnames(cum_inc)[apply(cum_inc,1,which.min)]` cohort the lowest with `r round(min(cum_inc), digits=1)`%. The severe TBI cohort had the highest 30-day-mortality with `r round(max_percent_dead, digits=1)`%, followed by the shock cohort with `r round(second_max_percent_dead, digits=1)`%. The study population is male-dominated with `r round(percent_male, digits=1)`% men. The two cohorts with the highest average NISS was blunt multisystem and severe TBI with 34,0.
 
 
 
 
-```{r echo=FALSE, warning=FALSE}
+```{r descriptive-table, echo=FALSE, warning=FALSE}
 library(dplyr)
 library(kableExtra)
-pt_demographics_kable %>%
-  kable_styling(latex_options = "HOLD_position", full_width = F, position = "left")%>%
+   
+pt_demographics <- table1(~ OFI + pt_age_yrs + Gender + ed_gcs_sum  + ed_sbp_value + NISS + res_survival | Cohort, data=merged_cohorts, caption="\\textbf{Cohort demographics}", overall = FALSE)
+
+t1kable(pt_demographics) %>% 
+  kable_styling(latex_options = "HOLD_position", full_width = F, position = "center") %>%
   row_spec(0, bold= TRUE) %>%
   kable_styling(latex_options = "scale_down")
-
 ```
-SD: standard deviation, ED SBP: emergency department systolic blood pressure, ED GCS: emergency department glasgow coma scale, NISS: new injury severity score Survival: survival status 30 days post admission to emergency department.
+
+
+*SD: standard deviation, ED SBP: emergency department systolic blood pressure, ED GCS: emergency department Glasgow coma scale sum, NISS: new injury severity score, Survival: survival status 30 days post emergency department admission.*
 
 
 
 ## Incidence
-In the study population, total incidence of OFI ranged from  `r round(min(incidence.data$incidence_all), digits=2)`% to   `r round(max(incidence.data$incidence_all), digits=2)`% (see Figure 2). The highest recorded 3-month incidence was `r round(max(incidence), digits=2)`% in the `r colnames(incidence)[apply(cum_inc,1,which.max)]` cohort. There was a high degree of variance across cohorts. The cumulative incidence rate varied somewhat across cohorts, as well as temporally within cohorts (see Figure 3). The cohort with the largest cumulative incidence was `r colnames(cum_inc)[apply(cum_inc,1,which.max)]` (`r round(max(cum_inc), digits=2)`%)  and the cohort with the lowest was `r colnames(cum_inc)[apply(cum_inc,1,which.min)]` (`r round(min(cum_inc), digits=2)`%). The cumulative incidence in the entire study population was `r round(max(cum_inc$cum_inc_all), digits=2)`%.
+In the study population, total incidence of OFI ranged from  `r round(min(incidence.data$incidence_all), digits=2)`% to   `r round(max(incidence.data$incidence_all), digits=2)`% (see figure \@ref(fig:incidence-graph)). The highest recorded biannual incidence was `r round(max(incidence), digits=2)`% in the `r colnames(incidence)[apply(cum_inc,1,which.max)]` cohort. The cumulative incidence rate varied across cohorts, as well as temporally within cohorts (see figure \@ref(fig:cumulative-incidence-graph)). The cohort with the largest cumulative incidence was `r colnames(cum_inc)[apply(cum_inc,1,which.max)]` (`r round(max(cum_inc), digits=2)`%)  and the cohort with the lowest was `r colnames(cum_inc)[apply(cum_inc,1,which.min)]` (`r round(min(cum_inc), digits=2)`%). The cumulative incidence in the trauma population in its entirety was `r round(max(cum_inc$cum_inc_all), digits=2)`%.
 
-```{r echo=FALSE, warning = FALSE}
+```{r incidence-graph, fig.cap="\\textbf{Biannual incidence of OFI.} Percentage of OFI of cases reviewed with a six month interval (2017-2021). \\emph{OFI: opportunities for improvement, TBI: traumatic brain injury.}", latex_options = "HOLD_position", echo=FALSE, warning=FALSE, out.width="85%", fig.align="center"}
 library(ggplot2)
 incidence_plot
 ```
 
-**Figure 2: Biannual OFI incidence.**
-Percentage of cohort participants with OFI review biannually. OFI: opportunities for improvement, TBI: traumatic brain injury.
 
 
+```{r cumulative-incidence-graph, fig.cap="\\textbf{Cumulative incidence of OFI.} Cumulative percentage of total cohort participants with OFI (2017-2021). \\emph{OFI: opportunities for improvement, TBI: traumatic brain injury.}", latex_options = "HOLD_position", echo=FALSE, warning=FALSE, out.width="85%", fig.align="center"}
 
-
-```{r echo=FALSE, warning = FALSE}
 library(ggplot2)
-cum_incidence_plot
+cum_incidence_plot 
+
 ```
 
-**Figure 3: Cumulative OFI incidence.**
-Cumulative percentage of total cohort participants with OFI.
-OFI: opportunities for improvement, TBI: traumatic brain injury.
 
 ## Trends
-All cohorts had a negative incidence trend estimate. With significance defined as p<0,05, none of the trends can be considered significant. The steepest trend estimate were that of Severe TBI with(-2,9444), whereas the lowest p-value (p=0,0517) were found in the Shock cohort .
+Table \@ref(tab:trend-table) presents the outcome of a fitted linear model with a time series component. All cohorts had a negative incidence trend estimate. With statistical significance defined as p<0,05, no trends were considered significant. The steepest trend estimate were that of Severe TBI with -0.017 (CI y-y, p=0,089). Closest to having a statistically significant trend was the shock cohort with p=0,0517.
 
 
-```{r include=FALSE, warning=FALSE}
+```{r trend-table, echo=FALSE, warning=FALSE}
 library(kableExtra)
 
 incidence_trend_table %>%
-  kbl(caption = "<strong> Table 3: Incidence trends</strong>", col.names = c("Cohort","Estimate",
+  kbl(caption = "\\textbf{Incidence trends}", col.names = c("Cohort","Estimate",
                            "Standard error",
                            "Statistic", "P value")) %>%
   kable_classic_2(full_width = F, html_font = "Cambria") %>%
   row_spec(0, bold= TRUE) %>%
-  kable_styling(latex_options = "hold_position", position = "left")
+  kable_styling(latex_options = "hold_position", position = "center")
 ```
 
-```{r echo=FALSE, warning=FALSE}
-regression_table_knit
-```
-
-TBI: traumatic brain injury, CI: confidence interval.
+*TBI: traumatic brain injury, CI: confidence interval.*
 
