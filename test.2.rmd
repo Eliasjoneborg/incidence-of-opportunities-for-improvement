@@ -1,0 +1,722 @@
+---
+title: "Results"
+output:
+  bookdown::pdf_document2:
+    toc: false
+---
+
+```{r setup, include=FALSE}
+#Necessary packages
+library(dplyr)
+library(plyr)
+library(incidence)
+library(scales)
+library(ggplot2)
+library(reshape2)
+library(ggthemes)
+library(DiagrammeR)
+library(table1)
+library(jtools)
+library(ggstance)
+library(lubridate)
+
+library("keyring")
+library("DBI")
+library("RMariaDB")
+library("readr")
+library(dotenv)
+
+
+conn <- DBI::dbConnect(drv = RMariaDB::MariaDB(),
+                       user = "eliasj",
+                      password = Sys.getenv("DB_PASSWORD"),
+                      db = "opportunities_for_improvement")
+
+dataset.names <- setNames(nm = c("swetrau", "fmp", "atgarder", "problem"))
+
+
+datasets <- lapply(dataset.names, function(dataset.name) dbReadTable(conn = conn, name = dataset.name))
+
+
+attach(datasets)
+
+swetrau$arrival <- as.POSIXct(strptime(swetrau$DateTime_ArrivalAtHospital, format = "%Y-%m-%d %H:%M"))
+fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d %H:%M"))
+problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d %H:%M"))
+swetrau$id <- paste(swetrau$arrival, swetrau$PersonIdentity, swetrau$TempIdentity)
+fmp$id <- paste(fmp$arrival, fmp$Personnummer, fmp$Reservnummer)
+problem$id <- paste(problem$arrival, problem$Personnummer, problem$Reservnummer)
+
+## Combine datasets
+combined.datasets <- merge(fmp, problem, by = "id", all.x = TRUE)
+combined.datasets <- merge(combined.datasets, swetrau, by = "id", all.x = TRUE)
+detach(datasets)
+all_patients <-combined.datasets
+
+combined.datasets <- filter(combined.datasets, as.Date(strptime(combined.datasets$Ankomst_te.x, format = "%Y%m%d %H:%M")) >="2017-01-01")
+
+create_ofi <- function(data) {
+    ## Check arguments
+    assertthat::assert_that(is.data.frame(data))
+    assertthat::assert_that(all(c("VK_avslutad", "Problemomrade_.FMP", "Fr1.14") %in% names(data)))
+    ## Create ofi variable
+    data$Problemomrade_.FMP <- tolower(data$Problemomrade_.FMP)
+    levels.Problemomrade_.FMP <- unique(data$Problemomrade_.FMP)
+    original.levels.Problemomrade_.FMP <- c(NA, "ok", "triage på akutmottagningen",
+                                            "resurs", "lång tid till op", "lång tid till dt",
+                                            "vårdnivå", "traumakriterier/styrning",
+                                            "missad skada", "kommunikation", "neurokirurg",
+                                            "föredömligt handlagd", "logistik/teknik",
+                                            "dokumentation", "dokumetation", "bristande rutin", 
+                                            "handläggning", "kompetens brist", "tertiär survey")
+    if (!all(levels.Problemomrade_.FMP %in% original.levels.Problemomrade_.FMP))
+        stop ("Levels in Problemomrade._FMP have changed.")
+    levels.Fr1.14 <- unique(data$`Fr1.14`)
+    original.levels.Fr1.14 <- c(NA, "1", "3", "2", "999")
+    if (!all(levels.Fr1.14 %in% original.levels.Fr1.14))
+        stop ("Levels in Fr1.14 have changed.")
+    prob.filters <- with(data, Problemomrade_.FMP != "ok" & Problemomrade_.FMP != "föredömligt handlagd")
+    prob.mortality <- with(data, Fr1.14 == "2" | Fr1.14 == "3")
+    prob <- prob.filters | prob.mortality
+    data$VK_avslutad <- tolower(data$VK_avslutad)
+    levels.VK_avslutad <- unique(data$VK_avslutad)
+    original.levels.VK_avslutad <- c("ja", NA, "nej")
+    if (!all(levels.VK_avslutad %in% original.levels.VK_avslutad))
+        stop ("Levels in VK_avslutad have changed.")
+    quality.process.done <- data$VK_avslutad == "ja"
+    ofi <- ifelse(prob, "Yes",
+           ifelse(quality.process.done & !prob, "No", NA))
+    ofi[quality.process.done & is.na(prob)] <- "No"
+    return (ofi)
+}
+
+
+ combined.datasets$OFI <- create_ofi(combined.datasets) 
+
+ swetrau_problem_merged <- combined.datasets
+
+swetrau_problem_merged$OFI <- with(swetrau_problem_merged, ifelse(is.na(OFI) | OFI == "No", "No", "Yes")) 
+known_problem_area <-swetrau_problem_merged[!is.na(swetrau_problem_merged$OFI),]
+#remove unknown problem area
+
+age_over_14 <- filter(known_problem_area, pt_age_yrs>14)
+
+fewer_variables<-age_over_14 %>% select(id, inj_dominant, res_survival, pt_age_yrs, Gender, OFI, NISS, ed_gcs_sum, pre_intub_type, pre_sbp_value, pre_sbp_rtscat, ed_sbp_value, ed_sbp_rtscat, Ankomst_te.x, starts_with("AISCode"))
+#removing unnecessary variables
+
+
+## Changing 999 to NA for grouping into cohorts
+
+fewer_variables$ed_sbp_value[fewer_variables$ed_sbp_value == 999] = NA
+fewer_variables$ed_sbp_rtscat[fewer_variables$ed_sbp_rtscat == 999] = NA
+fewer_variables$ed_gcs_sum[fewer_variables$ed_gcs_sum == 999] = NA
+fewer_variables$inj_dominant[fewer_variables$inj_dominant == 999] = NA
+
+fewer_variables$Gender[fewer_variables$Gender == "M"] = "Male"
+fewer_variables$Gender[fewer_variables$Gender == "K"] = "Female"
+
+
+### COHORT GROUPING ###
+
+## The functions below expect a row of AIS codes as input
+
+#BLUNT MULTISYSTEM
+is_serious <- function(code) {
+  severity <- substr(as.character(code), 8, 8)
+  as.numeric(severity) >= 3  
+}
+#if severity level is 3 or higher, the injury is considered serious
+
+number_of_regions <- function(code) {
+  region <- substr(as.character(code), 1, 1)
+  length(unique(region))
+}
+#identifying number of regions
+
+has_more_than_one_serious_injury <- function(code) {
+  code <- code[!is.na(code)]
+  serious_injury <- is_serious(code)
+  number_of_regions(code[serious_injury]) >= 2
+}
+
+## combining them
+blunt.multisystem <- apply(fewer_variables[1:100, ], 1, function(row) {
+    code <- row[grep("AISCode", names(row))]
+    row
+})
+
+fewer_variables$blunt_multisystem <- NA
+#creating column blunt_multisystem
+
+known_dominant_injury <-fewer_variables[!is.na(fewer_variables$inj_dominant), ] 
+#removing not known in inj_dominant
+
+for (i in 1:nrow(known_dominant_injury)) {
+  v = 0+i
+  if (has_more_than_one_serious_injury(known_dominant_injury[v,grepl( "AISCode" , names(known_dominant_injury))]) == TRUE && known_dominant_injury[v,"inj_dominant"] == 1) {
+    known_dominant_injury[v,"blunt_multisystem"] <- TRUE
+  } else {
+    known_dominant_injury[v,"blunt_multisystem"] <- FALSE
+  }
+}
+#blunt multisystem <- TRUE/FALSE 
+
+## The above for loop could be replaced with the more R:ish apply function below, which is substantially faster (at least on my low performing machine)
+
+known_dominant_injury$blunt_multisystem <- apply(known_dominant_injury, 1, function(row) {
+    code <- row[grep("AISCode", names(row))] 
+    has_more_than_one_serious_injury(code) && row["inj_dominant"] == "1"
+})
+
+#SHOCK
+bp_is_na <- with(fewer_variables, is.na(ed_sbp_rtscat) & is.na(ed_sbp_value))    
+known_blood_pressure <- fewer_variables[!bp_is_na,]  
+#removing rows with na in both sbp value and rts
+     
+known_blood_pressure$ed_sbp_rtscat[is.na(known_blood_pressure$ed_sbp_rtscat)]<-10
+known_blood_pressure$ed_sbp_value[is.na(known_blood_pressure$ed_sbp_value)]<-999
+#an ineffective way to ensure I don't get na:s in "ed_sbp_below_90" column below
+
+known_blood_pressure$ed_sbp_below_90 <- with(known_blood_pressure, ifelse(ed_sbp_value>=0 & known_blood_pressure$ed_sbp_value<=90, TRUE, FALSE))
+known_blood_pressure$shock <- with(known_blood_pressure, ifelse(ed_sbp_below_90 == TRUE | ed_sbp_rtscat <= 3, TRUE, FALSE))
+#creating column for bp<90 with TRUE/FALSE
+
+#GERIATRIC
+known_age <- fewer_variables
+known_age$geriatric <- with(fewer_variables, ifelse(pt_age_yrs>65, TRUE, FALSE))
+#creating column in new df with TRUE/FALSE
+
+#PENETRATING
+neck_chest_abdomen_region <- function(code) {
+  code <- code[!is.na(code)]
+  region <- substr(as.character(code), 1, 1)  
+  is.element(region,3:5)
+}
+#generates TRUE/FALSE
+
+serious_neck_chest_abdomen_injury <- function(code) {
+  code <- code[!is.na(code)]
+  serious_injury <- is_serious(code)
+  sum(neck_chest_abdomen_region(code[serious_injury]) == TRUE )
+}
+#generates numerical value
+
+known_dominant_injury_pen <-fewer_variables[!is.na(fewer_variables$inj_dominant), ] 
+known_dominant_injury_pen$penetrating <- NA
+#removing na in dominant injury, new df
+
+for (i in 1:nrow(known_dominant_injury_pen)) {
+  v = 0+i
+  if(serious_neck_chest_abdomen_injury(known_dominant_injury_pen[v,grepl( "AISCode" , names(known_dominant_injury_pen))]) >= 1 && known_dominant_injury_pen[v, "inj_dominant"] == 2) {
+    known_dominant_injury_pen[v,"penetrating"] <- TRUE
+  } else {
+    known_dominant_injury_pen[v,"penetrating"] <- FALSE
+  }
+}
+#penetrating <- TRUE/FALSE
+
+
+#SEVERE TBI
+head_region <- function(code) {
+  region <- substr(as.character(code), 1, 1)
+  is.element(region, 1)
+}
+
+#returns true if body region == 1
+
+has_a_serious_head_injury <- function(code) {
+  code <- code[!is.na(code)]
+  serious_injury <- is_serious(code)
+  head_region(code[serious_injury]) 
+}
+
+#acts on vectors in "serious_injury", chooses those which have region == 1
+
+only_one_region <- function(code){
+  number_of_regions(code) == 1
+}
+
+#generates TRUE/FALSE
+
+only_one_serious_injury_region <- function(code) {
+  code <- code[!is.na(code)]
+  serious_injury <- is_serious(code)
+  only_one_region(code[serious_injury])
+}
+#generates TRUE/FALSE
+
+gcs_and_intub_is_na <- with(fewer_variables, is.na(ed_gcs_sum) & is.na(pre_intub_type))    
+known_gcs_or_intub_type <- fewer_variables[!gcs_and_intub_is_na,]  
+#remove row if na in both prehospital intub type and gcs
+
+known_gcs_or_intub_type$gcs_below_9 <- NA
+
+known_gcs_or_intub_type$gcs_below_9 <- with(known_gcs_or_intub_type, ifelse(ed_gcs_sum<=8 | pre_intub_type==1, TRUE, FALSE))
+known_gcs_or_intub_type$gcs_below_9 <- with(known_gcs_or_intub_type, ifelse(is.na(gcs_below_9) | isFALSE(gcs_below_9), FALSE, TRUE))
+
+#makes new variable containing those with a GCS <9 and those intubated in a prehospital setting. Converts na to false
+
+known_gcs_or_intub_type$severe_tbi <- NA
+
+for (i in 1:nrow(known_gcs_or_intub_type)) {
+  v = 0+i
+if (has_a_serious_head_injury(known_gcs_or_intub_type[v, grepl("AISCode", names(known_gcs_or_intub_type))]) == TRUE && only_one_serious_injury_region(known_gcs_or_intub_type[v, grepl("AISCode", names(known_gcs_or_intub_type))]) == TRUE && known_gcs_or_intub_type[v, "gcs_below_9"] == TRUE) {
+    known_gcs_or_intub_type[v,"severe_tbi"] <- TRUE
+  } else {
+    known_gcs_or_intub_type[v,"severe_tbi"] <- FALSE
+  }
+}
+
+
+#### MERGING 
+
+blunt_multisystem_cohort <- filter(known_dominant_injury, blunt_multisystem == "TRUE")
+shock_cohort <- filter(known_blood_pressure, shock == "TRUE")
+penetrating_cohort <- filter(known_dominant_injury_pen, penetrating == "TRUE")
+geriatric_cohort <- filter(known_age, geriatric == "TRUE")
+severe_tbi_cohort <-filter(known_gcs_or_intub_type, severe_tbi == "TRUE")
+overall <- fewer_variables
+#creating cohort df:s
+
+ geriatric_cohort$Cohort <- "Geriatric"
+ penetrating_cohort$Cohort <- "Penetrating"
+ severe_tbi_cohort$Cohort <- "Severe TBI"
+ shock_cohort$Cohort <- "Shock"
+ blunt_multisystem_cohort$Cohort <- "Blunt multisystem"
+ overall$Cohort <- "Overall"
+ #creating common variable "cohort"
+ 
+  merged_cohorts <- Reduce(function(x, y) merge(x, y, all=TRUE),
+                                     list(geriatric_cohort, penetrating_cohort, blunt_multisystem_cohort, shock_cohort, severe_tbi_cohort, overall))
+
+  #merging cohorts
+
+  
+  
+  
+#### PLOTTING
+  
+  ## FLOWCHARTS                  
+            
+  
+  
+                  
+  #SweTrau to M&M                
+                  
+ swetrau_flowchart <- DiagrammeR::grViz("
+digraph graph2 {
+
+graph [layout = dot]
+
+# node definitions with substituted label text
+node [shape = rectangle, width = 4, fillcolor = Biege]
+a [label = '@@1']
+b [label = '@@2']
+c [label = '@@3']
+d [label = '@@4']
+e [label = '@@5']
+f [label = '@@6']
+
+
+a -> b -> c -> d -> e -> f 
+
+
+
+}
+
+[1]:  paste0('Trauma team activation following major trauma')
+[2]: paste0('Inclusion in SweTrau')
+[3]: paste0('Primary review and audit filters')
+[4]: paste0('Secondary review by trained nurse')
+[5]: paste0('Multidisciplinary mortality and morbidity conference')
+[6]: paste0('Consensus regarding existence of OFI')
+") %>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("swetrau_flowchart.pdf")                
+  
+#Stages of exclusion  
+                        
+   a <- c(0,1)               
+   a$a <- nrow(datasets$problem) 
+   a <- as.data.frame(a)
+   a$b <- nrow(known_problem_area)
+   a$c <- nrow(age_over_14)
+   a$d <- nrow(fewer_variables)
+   a$e <- nrow(blunt_multisystem_cohort)
+   a$f <- nrow(penetrating_cohort)
+   a$g <- nrow(severe_tbi_cohort)
+   a$h <- nrow(geriatric_cohort)
+   a$i <- nrow(shock_cohort)
+            
+  #df with nrow of relevant df:s to be used as reference in code below 
+   
+exclusion_flowchart <- DiagrammeR::grViz("
+digraph graph2 {
+
+graph [layout = dot, ratio = compress, size=8]
+
+node [shape = rectangle, width = 4, fillcolor = Biege]
+a [label = '@@1']
+b [label = '@@2']
+c [label = '@@3']
+d [label = '@@4']
+e [label = '@@5']
+f [label = '@@6']
+g [label = '@@7']
+h [label = '@@8']
+i [label = '@@9']
+
+a -> b -> c -> d 
+d-> e
+d->f
+d->g
+d->h
+d->i
+          
+}
+
+[1]: paste0('Trauma care quality database (n = ', a$a, ')')
+[2]: paste0('ED arrival after 2017-01-01 (n = ', a$b, ')')
+[3]: paste0('Age ≥ 15 (n = ', a$c, ')')
+[4]: paste0('Eligible for grouping stage (n = ', a$d, ')')
+[5]: paste0('Blunt multisystem (n = ', a$e, ')')
+[6]: paste0('Penetrating (n = ', a$f, ')')
+[7]: paste0('Severe TBI (n = ', a$g, ')')
+[8]: paste0('Geriatric (n = ', a$h, ')')
+[9]: paste0('Shock (n = ', a$i, ')')
+
+
+", height = "250") 
+%>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("swetrau_flowchart.pdf")
+
+   
+#### GROUPING AND EXCLUSION TABLE
+   
+Cohort <- c("Blunt multisystem", "Penetrating", "Severe TBI", "Shock", "Geriatric")
+Category <- c("Dominant injury", "Dominant injury", "ED GCS", "ED SBP", "Age")
+Missing <- c((nrow(fewer_variables)-nrow(known_dominant_injury)),(nrow(fewer_variables)-nrow(known_dominant_injury)), (nrow(fewer_variables)-nrow(known_gcs_or_intub_type)), (nrow(fewer_variables)-nrow(known_blood_pressure)), (nrow(fewer_variables)-nrow(known_age)))
+Missing_as_percent <- c( round(((nrow(fewer_variables)-nrow(known_dominant_injury))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_dominant_injury))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_gcs_or_intub_type))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_blood_pressure))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_age))/nrow(fewer_variables)*100), digits = 2))
+   
+Exclusion_table <- data.frame(Cohort, Category, Missing, Missing_as_percent)
+Exclusion_table
+
+
+
+ #### PATIENT DEMOGRAPHICS 
+
+                  merged_cohorts$res_survival <- with(merged_cohorts, ifelse(res_survival== "1", "Dead", "Alive"))
+                  merged_cohorts$NISS<- as.numeric(merged_cohorts$NISS)
+                  render.continuous.default(merged_cohorts$NISS)
+                  merged_cohorts$pt_age_yrs<- as.numeric(merged_cohorts$pt_age_yrs)
+                  render.continuous.default(merged_cohorts$pt_age_yrs)
+                  merged_cohorts$pt_age_yrs<- as.numeric(merged_cohorts$ed_gcs_sum)
+                  render.continuous.default(merged_cohorts$ed_gcs_sum)
+  
+                  label(merged_cohorts$NISS)              <- "NISS"
+                  label(merged_cohorts$ed_sbp_value)     <- "ED SBP"
+                  label(merged_cohorts$pt_age_yrs)        <- "Age"
+                  label(merged_cohorts$ed_gcs_sum)        <- "ED GCS"
+                  label(merged_cohorts$res_survival)        <- "Survival"
+                  label(merged_cohorts$Gender)        <- "Sex"
+                  
+                  label(merged_cohorts$OFI)               <- "OFI"
+                  
+              
+                  units(merged_cohorts$ed_sbp_value)   <- "mmHg"
+                  units(merged_cohorts$pt_age_yrs)    <-"years"
+                  
+
+                  pt_demographics <- table1(~ OFI + pt_age_yrs + Gender + ed_gcs_sum  + ed_sbp_value + NISS + res_survival | Cohort, data=merged_cohorts, caption = "<strong>Table 2: Demographics</strong>", overall = FALSE)
+                  
+                  
+                  
+      
+
+#### INCIDENCE CALCULATIONS
+   
+                  
+   fewer_variables$date <- as.Date(strptime(fewer_variables$Ankomst_te.x, format = "%Y%m%d %H:%M"))
+#converting date               
+                
+
+### INCIDENCE (3-months)
+
+cohorts <- list(geriatric_cohort = geriatric_cohort,
+                 penetrating_cohort = penetrating_cohort,
+                 blunt_multisystem_cohort = blunt_multisystem_cohort,
+                 shock_cohort = shock_cohort,
+                 severe_tbi_cohort = severe_tbi_cohort,
+                 overall = overall)
+ calculate_incidence <- function(cohort) {
+     cohort$date <- as.Date(strptime(cohort$Ankomst_te.x, format = "%Y%m%d %H:%M"))
+     cohort.ofi <- incidence(cohort$date, interval = "6 months", groups = cohort$OFI) %>% as.data.frame()
+     cohort.ofi$incidence <- 0
+     if (is.element("No", names(cohort.ofi)))
+         cohort.ofi$incidence <- cohort.ofi$Yes / (cohort.ofi$Yes + cohort.ofi$No) * 100
+     return (cohort.ofi)
+ }
+ incidence.data <- lapply(cohorts, calculate_incidence)
+
+
+### CUMULATIVE INCIDENCE (year)
+
+ calculate_percent_of_total <- function(cohort) {
+     cohort$date <- as.Date(strptime(cohort$Ankomst_te.x, format = "%Y%m%d %H:%M"))
+     cohort.ofi <- incidence(cohort$date, interval = "6 months", groups = cohort$OFI) %>% as.data.frame()
+     cohort.ofi$per_tot <- 0
+     if (is.element("No", names(cohort.ofi)))
+         cohort.ofi$per_tot <- cohort.ofi$Yes / c(nrow(cohort)) * 100
+     return (cohort.ofi)
+ }
+     
+  percentage.data <- lapply(cohorts, calculate_percent_of_total)    
+ 
+ get_cum_inc<- function(cohort){
+cum_inc <- transform(cohort, cum_inc = cumsum(cohort$per_tot))
+ return(cum_inc)
+ }
+ 
+cumulative.incidence.data <- lapply(percentage.data, get_cum_inc)
+ 
+
+
+
+
+#### RENAMING VARIABLES
+
+incidence_data <- incidence.data
+incidence.data$geriatric_cohort$incidence_ger <- incidence.data$geriatric_cohort$incidence
+incidence.data$penetrating_cohort$incidence_pen <- incidence.data$penetrating_cohort$incidence
+incidence.data$severe_tbi_cohort$incidence_tbi <- incidence.data$severe_tbi_cohort$incidence
+incidence.data$shock_cohort$incidence_sho <- incidence.data$shock_cohort$incidence
+incidence.data$blunt_multisystem_cohort$incidence_blu <- incidence.data$blunt_multisystem_cohort$incidence
+incidence.data$overall$incidence_all <- incidence.data$overall$incidence
+
+#making unique variable name for each cohort (there surely is a way to do this more efficiently, but right now it is not my focus
+
+cumulative.incidence.data$geriatric_cohort$cum_inc_ger <- cumulative.incidence.data$geriatric_cohort$cum_inc
+cumulative.incidence.data$penetrating_cohort$cum_inc_pen <- cumulative.incidence.data$penetrating_cohort$cum_inc
+cumulative.incidence.data$severe_tbi_cohort$cum_inc_tbi <- cumulative.incidence.data$severe_tbi_cohort$cum_inc
+cumulative.incidence.data$shock_cohort$cum_inc_sho <- cumulative.incidence.data$shock_cohort$cum_inc
+cumulative.incidence.data$blunt_multisystem_cohort$cum_inc_blu <- cumulative.incidence.data$blunt_multisystem_cohort$cum_inc
+cumulative.incidence.data$overall$cum_inc_all <- cumulative.incidence.data$overall$cum_inc
+
+#no2
+
+
+cumulative.incidence.data <- bind_rows(cumulative.incidence.data, .id = NULL)
+cumulative.incidence.data[is.na(cumulative.incidence.data)] = 0
+cumulative.incidence.data<- ddply(cumulative.incidence.data,"dates",numcolwise(sum))
+#list to df
+
+incidence.data <- bind_rows(incidence.data, .id = NULL)
+incidence.data[is.na(incidence.data)] = 0
+incidence.data<- ddply(incidence.data,"dates",numcolwise(sum))
+#list to df
+
+
+
+
+#### PLOTTING INCIDENCE AND CUMULATIVE INCIDENCE
+
+#Yearly incidence as %
+plot_inc_year <- incidence.data %>% select(dates, incidence_ger, incidence_pen, incidence_blu, incidence_sho, incidence_tbi, incidence_all)
+
+plot_inc_year_long <- melt(plot_inc_year, id.vars = "dates")
+#melt as to enable ggplot to work
+
+incidence_plot <- ggplot(plot_inc_year_long,
+       aes(x=dates,
+           y=value,
+           col = variable)) + 
+  scale_color_discrete(name = "Cohort", labels = c("Geriatric", "Penetrating", "Blunt multisystem", "Shock","Severe TBI", "Overall")) +
+  geom_line(size = 1.0, alpha = 1.0) +
+  labs(x = "Year",
+       y = "% of reviewed previous 6 months") +
+  theme_tufte() +
+  theme(axis.title = element_text(), legend.title = element_blank()) 
+
+#Right now not showing S-TBI cohort as there are missing values.
+
+
+#Cumulative incidence
+plot_cum_inc<-cumulative.incidence.data %>% select(dates, cum_inc_ger, cum_inc_pen, cum_inc_blu, cum_inc_sho, cum_inc_tbi, cum_inc_all)
+
+plot_cum_inc_long <- melt(plot_cum_inc, id.vars = "dates")
+
+cum_incidence_plot<- ggplot(plot_cum_inc_long,
+       aes(x=dates,
+           y=value,
+           col = variable)) +
+  scale_color_discrete(name = "Cohort", labels = c("Geriatric", "Penetrating", "Blunt multisystem", "Shock","Severe TBI", "Overall")) +
+  geom_line(size = 1.0, alpha = 1.0) +
+  labs(x = "Year",
+       y = "% of total") +
+  theme_tufte() +
+  theme(axis.title = element_text(), legend.title = element_blank())
+
+
+
+#### INCIDENCE TRENDS
+
+library(fable)
+library(broom)
+calculate_incidence_trends <- function(cohort) {
+   trend <- as_tsibble(cohort) %>% model(lm = TSLM(incidence ~ trend())) %>% tidy()
+     return (trend)
+}
+
+incidence_data$geriatric_cohort %>% model(lm=TSLM())
+
+incidence.trends <- lapply(incidence_data, calculate_incidence_trends)
+ 
+
+penetrating_incidence_trend <- incidence.trends$penetrating[c(2), ] 
+geriatric_incidence_trend <- incidence.trends$geriatric[c(2), ] 
+tbi_incidence_trend <- incidence.trends$severe_tbi[c(2), ] 
+blunt_incidence_trend <- incidence.trends$blunt[c(2), ] 
+shock_incidence_trend <- incidence.trends$shock[c(2), ] 
+overall_incidence_trend <- incidence.trends$overall[c(2), ] 
+
+penetrating_incidence_trend$cohort <- "Penetrating"
+geriatric_incidence_trend$cohort <-"Geriatric"
+tbi_incidence_trend$cohort <- "Severe TBI"
+blunt_incidence_trend$cohort <- "Blunt multisystem"
+shock_incidence_trend$cohort <- "Shock"
+overall_incidence_trend$cohort <- "Overall"
+
+incidence_trend_table <- Reduce(function(x, y) merge(x, y, all=TRUE),
+                                     list(penetrating_incidence_trend, geriatric_incidence_trend, tbi_incidence_trend, blunt_incidence_trend, shock_incidence_trend, overall_incidence_trend))
+
+library(dplyr)
+library(readxl)
+
+names(incidence_trend_table) <- c('Model', 'Term', 'Estimate', 'SD_error', 'Statistic', 
+                       'P_value', 'Cohort')
+incidence_trend_table <- incidence_trend_table[,c(7, 3, 4, 5, 6, 2, 1)]
+incidence_trend_table <- incidence_trend_table[, -c(6,7)]
+
+
+
+#### REFERENCES FOR MARKDOWN CHUNKS
+
+cum_inc <- select(plot_cum_inc, -dates)
+cum_inc <- cum_inc %>% slice(-c(1:8))
+
+
+incidence <- select(incidence.data, incidence_ger, incidence_pen, incidence_blu, incidence_sho, incidence_tbi)
+
+min.col <- function(m, ...) max.col(-m, ...)
+
+
+pt_demographics_flex<- t1flex(pt_demographics)
+
+FitFlextableToPage <- function(ft, pgwidth = 6){
+    ft_out <- ft %>% autofit()
+      ft_out <- width(ft_out, width = dim(ft_out)$widths*pgwidth /(flextable_dim(ft_out)$widths))
+  return(ft_out)
+}
+
+pt_demographics_kable<- t1kable(pt_demographics)
+
+
+
+
+```
+
+
+
+## Participants 
+Over the pre-specified study period, `r nrow(datasets$problem)` patients were included in the the KUH trauma care quality database and subsequently in this study. Of those, `r nrow(fewer_variables)` (`r round(nrow(fewer_variables)/nrow(datasets$problem)*100, digits=2)`%) patients were aged >14, had sufficient data on our outcome measure and went on to form the study population (see Figure 1). Participants were then divided into the cohorts blunt multisystem (n=`r nrow(blunt_multisystem_cohort)`), geriatric (n=`r nrow(geriatric_cohort)`), penetrating (n= `r nrow(penetrating_cohort)`), severe TBI (n=`r nrow(severe_tbi_cohort)`) and shock (n=`r  nrow(shock_cohort)`). `r Exclusion_table$Missing[3]` patients lacked data about emergency department gcs and `r Exclusion_table$Missing[4]` patients lacked data about emergency department blood pressure. No patients lacked data about dominant injury type or age (see Table 1).
+
+```{r swetrau-flowchart, echo=FALSE, fig.cap="SweTrau flowchart", out.width="50%", fig.align="center"}
+knitr::include_graphics("swetrau_flowchart.pdf")
+```
+
+
+**Figure 1: Exclusion flowchart.** Excluded are all patients patients treated between 2013 and 2017, as they systematically lack data about OFI in addition to other relevant data points. Furthermore, excluded are patients aged 14 and below. TBI: traumatic brain injury.
+
+
+
+
+
+```{r echo=FALSE, warning=FALSE, message = FALSE}
+library(kableExtra)
+
+Exclusion_table %>%
+   kbl(caption = "<strong>Missing data by cohort.</strong> In table 1, the variable ´Category´ refers to the category of data required to group patients into a specified cohort. `Missing` refers to the number of patients lacking sufficient data in said category", col.names = c("Cohort","Type",
+                           "Missing",
+                           "%")) %>%
+  kable_classic_2(html_font = "Cambria") %>%
+  row_spec(0, bold= TRUE) %>%
+  kable_styling(latex_options = "HOLD_position", full_width = F, position = "left")
+
+incidence.data$numbers <- c(1:9)
+model <- lm(incidence_blu ~ numbers, data=incidence.data)
+
+
+```
+ED SBP: emergency department systolic blood pressure, ED GCS: emergency department Glasgow coma scale.
+ 
+## Descriptive data
+Table 2 presents patient demographics in the trauma cohorts. The cohorts exhibited differences regarding OFI, age, sex, injury severity score, emergency department systolic BP, emergency department GCS and 30-day mortality. The cohort with the highest percentage of OFI was `r colnames(cum_inc)[apply(cum_inc,1,which.max)]` with `r round(max(cum_inc), digits=2)`%. The cohort with the lowest percentage of OFI was `r colnames(cum_inc)[apply(cum_inc,1,which.min)]` with `r round(min(cum_inc), digits=2)`%.
+
+
+
+
+```{r echo=FALSE, warning=FALSE}
+library(dplyr)
+library(kableExtra)
+pt_demographics_kable %>%
+  kable_styling(latex_options = "HOLD_position", full_width = F, position = "left")%>%
+  row_spec(0, bold= TRUE) %>%
+  kable_styling(latex_options = "scale_down")
+
+```
+SD: standard deviation, ED SBP: emergency department systolic blood pressure, ED GCS: emergency department glasgow coma scale, NISS: new injury severity score Survival: survival status 30 days post admission to emergency department.
+
+
+
+## Incidence
+In the study population, total incidence of OFI ranged from  `r round(min(incidence.data$incidence_all), digits=2)`% to   `r round(max(incidence.data$incidence_all), digits=2)`% (see Figure 2). The highest recorded 3-month incidence was `r round(max(incidence), digits=2)`% in the `r colnames(incidence)[apply(cum_inc,1,which.max)]` cohort. There was a high degree of variance across cohorts. The cumulative incidence rate varied somewhat across cohorts, as well as temporally within cohorts (see Figure 3). The cohort with the largest cumulative incidence was `r colnames(cum_inc)[apply(cum_inc,1,which.max)]` (`r round(max(cum_inc), digits=2)`%)  and the cohort with the lowest was `r colnames(cum_inc)[apply(cum_inc,1,which.min)]` (`r round(min(cum_inc), digits=2)`%). The cumulative incidence in the entire study population was `r round(max(cum_inc$cum_inc_all), digits=2)`%.
+
+```{r echo=FALSE, warning = FALSE}
+library(ggplot2)
+incidence_plot
+```
+
+**Figure 2: Biannual OFI incidence.**
+Percentage of cohort participants with OFI review biannually. OFI: opportunities for improvement, TBI: traumatic brain injury.
+
+
+
+
+```{r echo=FALSE, warning = FALSE}
+library(ggplot2)
+cum_incidence_plot
+```
+
+**Figure 3: Cumulative OFI incidence.**
+Cumulative percentage of total cohort participants with OFI.
+OFI: opportunities for improvement, TBI: traumatic brain injury.
+
+## Trends
+All cohorts had a negative incidence trend estimate. With significance defined as p<0,05, none of the trends can be considered significant. The steepest trend estimate were that of Severe TBI with(-2,9444), whereas the lowest p-value (p=0,0517) were found in the Shock cohort .
+
+
+```{r include=FALSE, warning=FALSE}
+library(kableExtra)
+
+incidence_trend_table %>%
+  kbl(caption = "<strong> Table 3: Incidence trends</strong>", col.names = c("Cohort","Estimate",
+                           "Standard error",
+                           "Statistic", "P value")) %>%
+  kable_classic_2(full_width = F, html_font = "Cambria") %>%
+  row_spec(0, bold= TRUE) %>%
+  kable_styling(latex_options = "hold_position", position = "left")
+```
+
+```{r echo=FALSE, warning=FALSE}
+regression_table_knit
+```
+
+TBI: traumatic brain injury, CI: confidence interval.
+
