@@ -1,15 +1,20 @@
 ---
-title: "Results"
+title: "Incidence of Opportunities for Improvement"
+subtitle: "a retrospective cohort study in a Scandinavian level-I trauma centre"
 output:
   bookdown::pdf_document2:
-    toc: false
- 
+    toc: true
+bibliography: citations.bib
+link-citations: yes
+csl: bmcemerg.csl
+header-includes:
+  \usepackage{float}
+ \floatplacement{figure}{H}
 ---
 
 ```{r setup, include=FALSE }
 #Necessary packages
 library(dplyr)
-library(float)
 library(plyr)
 library(incidence)
 library(scales)
@@ -322,9 +327,10 @@ c [label = '@@3']
 d [label = '@@4']
 e [label = '@@5']
 f [label = '@@6']
+h [label = '@@7']
 
 
-a -> b -> c -> d -> e -> f 
+a -> b -> c -> d -> e -> f -> h
 
 
 
@@ -336,6 +342,7 @@ a -> b -> c -> d -> e -> f
 [4]: paste0('Secondary review by trained nurse')
 [5]: paste0('Multidisciplinary mortality and morbidity conference')
 [6]: paste0('Consensus regarding existence of OFI')
+[7]: paste0('Documentation in KUH TCQD')
 ") %>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("swetrau_flowchart.pdf")                
   
 #Stages of exclusion  
@@ -351,45 +358,61 @@ a -> b -> c -> d -> e -> f
    a$g <- nrow(severe_tbi_cohort)
    a$h <- nrow(geriatric_cohort)
    a$i <- nrow(shock_cohort)
+   a$j <- nrow(problem) - nrow(known_problem_area)
             
   #df with nrow of relevant df:s to be used as reference in code below 
    
 exclusion_flowchart <- DiagrammeR::grViz("
 digraph graph2 {
 
-graph [layout = dot, ratio = compress, size=8]
+graph [layout = dot, size=30, ranksep = 2 nodesep = 2]
 
-node [shape = rectangle, width = 4, fillcolor = Biege]
+node [shape = rectangle, height = 2, width = 12, fillcolor = Biege, fontsize = 50, penwidth =6, arrowsize = .5, weight = 2]
 a [label = '@@1']
 b [label = '@@2']
-c [label = '@@3']
-d [label = '@@4']
-e [label = '@@5']
-f [label = '@@6']
-g [label = '@@7']
-h [label = '@@8']
-i [label = '@@9']
+d [label = '@@3', arrowhead = none]
+e [label = '@@4']
+f [label = '@@5']
+g [label = '@@6']
+h [label = '@@7']
+i [label = '@@8']
+j [label = '@@9']
+k [label = '@@10']
+l [label = '@@11']
+m [label = '@@12']
 
-a -> b -> c -> d 
-d-> e
-d->f
-d->g
-d->h
-d->i
+a -> b 
+a -> j
+b -> l
+b -> k
+l ->m
+l -> d
+d-> {e f g h i}
+
+
+{ rank = same; a; j }
+{ rank = same; b; k }
+{ rank = same; l; m }
+ 
           
 }
 
 [1]: paste0('Trauma care quality database (n = ', a$a, ')')
-[2]: paste0('ED arrival after 2017-01-01 (n = ', a$b, ')')
-[3]: paste0('Age ≥ 15 (n = ', a$c, ')')
-[4]: paste0('Eligible for grouping stage (n = ', a$d, ')')
-[5]: paste0('Blunt multisystem (n = ', a$e, ')')
-[6]: paste0('Penetrating (n = ', a$f, ')')
-[7]: paste0('Severe TBI (n = ', a$g, ')')
-[8]: paste0('Shock (n = ', a$i, ')')
-[9]: paste0('Geriatric (n = ', a$h, ')')", height = "500") %>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("exclusion_flowchart.pdf")   
+[2]: paste0('Complete OFI data (n = ', a$b, ')')
+[3]: paste0('Eligible for grouping stage (n = ', a$d, ')')
+[4]: paste0('Blunt multisystem (n = ', a$e, ')')
+[5]: paste0('Penetrating (n = ', a$f, ')')
+[6]: paste0('Severe TBI (n = ', a$g, ')')
+[7]: paste0('Shock (n = ', a$i, ')')
+[8]: paste0('Geriatric (n = ', a$h, ')')
+[9]: paste0('ED arrival prior to 2017 (n = ', a$j, ')')
+[10]: paste0('Missing age data (n=932)')
+[11]: paste0('Complete age data (n=5216)')
+[12]: paste0('Age<15 (n=2)')
+", height = "500") %>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("exclusion_flowchart.pdf")   
 
-   
+
+
 #### GROUPING AND EXCLUSION TABLE
    
 Cohort <- c("Blunt multisystem", "Penetrating", "Severe TBI", "Shock", "Geriatric")
@@ -422,7 +445,8 @@ table(merged_cohorts$ed_gcs_sum)
                   label(merged_cohorts$OFI)               <- "OFI"
                   
               
-                  units(merged_cohorts$ed_sbp_value)   <- "mmHg"
+          
+                          units(merged_cohorts$ed_sbp_value)   <- "mmHg"
                   units(merged_cohorts$pt_age_yrs)    <-"years"
                   
 
@@ -520,7 +544,7 @@ incidence.data<- ddply(incidence.data,"dates",numcolwise(sum))
 #### PLOTTING INCIDENCE AND CUMULATIVE INCIDENCE
 
 #Yearly incidence as %
-plot_inc_year <- incidence.data %>% select(dates, incidence_blu, incidence_pen, incidence_blu, incidence_sho, incidence_ger, incidence_all)
+plot_inc_year <- incidence.data %>% select(dates, incidence_blu, incidence_pen, incidence_tbi, incidence_sho, incidence_ger, incidence_all)
 
 plot_inc_year_long <- melt(plot_inc_year, id.vars = "dates")
 #melt as to enable ggplot to work
@@ -599,6 +623,34 @@ names(incidence_trend_table) <- c('Model', 'Term', 'Estimate', 'SD_error', 'Stat
 incidence_trend_table <- incidence_trend_table[,c(7, 3, 4, 5, 6, 2, 1)]
 incidence_trend_table <- incidence_trend_table[, -c(6,7)]
 
+x <- c("Blunt multisystem", "Penetrating", "Severe TBI", "Shock", "Geriatric", "Overall")
+
+incidence_trend_table <- incidence_trend_table[c(6,5,1,2,4,3), ]
+rownames(incidence_trend_table) <- c()
+
+### INCIDENCE PACKAGE PLOT 
+
+
+incidence_package_ofi <- incidence(fewer_variables$date, interval = "6 months", groups = fewer_variables$OFI)
+#Use of incidence package to calculate incidence in the group as a whole by year (2)
+
+plot(incidence_package_ofi, stack = TRUE, border = "grey")
+### TOTAL
+
+#calculate incidence by cohort and year (2)
+cohort_incidence_package_ofi <- filter(merged_cohorts, OFI == "Yes")
+
+cohort_incidence_package_ofi$date <-as.Date(strptime(cohort_incidence_package_ofi$Ankomst_te.x, format = "%Y%m%d %H:%M"))
+#converting date
+
+#Since each case here is "OFI == Yes", incidence of dates is all we need to calculate
+
+cohort_incidence_package_ofi <-incidence(cohort_incidence_package_ofi$date, interval = "6 months", groups = cohort_incidence_package_ofi$Cohort)
+
+incidence_package_plot <- plot(cohort_incidence_package_ofi)
+### BY COHORT
+
+
 
 
 #### REFERENCES FOR MARKDOWN CHUNKS
@@ -629,34 +681,155 @@ percent_male <- c(nrow(filter(fewer_variables, Gender == "Male"))) / c(nrow(fewe
 
 ```
 
+# Abbreviations
+
+ACS — American College of Surgeons
+
+AIS — Abbreviated Injury Scale
+
+ANTRC — Australian National Trauma Registry Consortium
+
+BP — Blood pressure
+
+CI — Confidence interval
+
+ED - Emergency department
+
+GCS - Glasgow Coma Scale
+
+ISS - Injury Severity Score
+
+KUH — Karolinska University Hospital 
+
+NISS - New Injury Severity Score
+
+OFI — Opportunities for improvement
+
+WHO — World Health Organisation
+
+R - Statistical programming language
+
+SweTrau  — The Swedish Trauma Registry
+
+TBI - Traumatic brain injury
+
+TCQD - Trauma Care Quality Database
+
+TQIP - Trauma Quality Improvement Program
+
+# Background
+Trauma, defined as physical injury and the body’s associated response[@Gerdin2015], is the leading cause of death in patients aged 45 or younger[@GlobalStats]. Trauma claims 4,4 million lives each year[@WHO_2019] and constitutes a massive burden on the global economy[@GlobalStats]. For every death by trauma, three patients are rendered permanently disabled[@Trauma], which significantly amplifies the social and economic impacts of the disease as well as the importance of quality trauma care. As a disease, trauma accounts for a larger cumulative loss of productive years of work, than any other[@Productiveyears].
+
+Approximately half of all deaths attributable to trauma occur within minutes of the initial injury[@Trauma], making primary prevention the most effective way to address its significant mortality. The second half occurs later and can be further divided into those who die from neurological dysfunction (30%), with a peak within 2 days post-injury, and those who die from sepsis or multisystem organ failure (20%) with a peak within a few weeks post-injury[@Trauma]. The two major mechanisms of injury are blunt trauma, due to falls, traffic accidents and assaults and penetrating trauma, due to stabbing or use of firearms[@Trauma].
+
+## Trauma centres
+There is a “volume-outcome relationship” in healthcare, meaning that the more patients of a certain category a hospital manages, the better it will handle a similar type of patient in the future. Partly because of this relationship, trauma care throughout most parts of the world have been centralized to trauma centres. Trauma centres are hospitals equipped to provide specialized care for patients who have suffered major traumatic injuries, and their implementation have led to a significant decline in the number of trauma related deaths[@Traumacentrematuration; @Traumacentres2]. The American College of Surgeons (ACS) has established criteria for different levels of trauma centres (I-V), with different abilities to offer specialized care. The highest level, level one, can be described as a comprehensive tertiary care facility capable of providing total care for every aspect of injury. The lowest level, level five, is a centre capable of evaluating, stabilizing and preparing patients for transfer to a higher level of care[@Traumacentres2].
+
+## Trauma quality improvement
+To lower the significant mortality and morbidity rates of trauma, several efforts to improve and systematize trauma care throughout the world have been initiated by institutions such as the World Health Organization (WHO), the ACS and the Australian National Trauma Registry Consortium (ANTRC)[@WHO_2009; @TQIP; @AUSTQIP]. They issue guidelines concerning trauma patient care, study directives, selection of study cohorts and trauma registry composition. Trauma registries, comprised of vital aspects of patient care, are essential to trauma care quality improvement as they allow for continuous retrospective assessments of care rendered and benchmarking of outcomes[@WHO_2009; @TQIP; @QualityBenchmarking]. Most modern trauma centres are therefore connected to comprehensive institutional, or national trauma registries[@QualityBenchmarking;  @Registry].
+
+## Opportunitites for improvement
+In trauma epidemiology, deaths by trauma are historically divided into one of three categories: non-preventable, potentially preventable or preventable[@Preventable_1, @Preventable_2]. For a death to be labeled preventable, the care of the patient cannot have been in accordance with treatment guidelines and errors in patient care must be related- or indirectly related to the patients death[@Avoidable]. This renders individual assessment difficult, as it involves review boards in the labeling of care given by colleagues as ”inappropriate” and related to patient death[@Preventable_6]. To circumvent this, the term ”opportunities for improvement” (OFI) in patient care, has emerged in the trauma literature as a coarse dichotomous proxy measure for quality of care. It gives a more accurate estimation of sub optimal care rendered and identifies negative trends that may be corrected by the implementation of corrective initiatives. Moreover, it relieves review boards from the troublesome implication of labeling care “inappropriate”[@Preventable_6].
+
+## Mortality and morbidity reviews
+Multidisciplinary mortality and morbidity review boards are a staple of most modern trauma centres. Ideally, they are meant to constitute a self-regulating mechanism, whereby representatives of all disciplines involved in patient care assess care given and discuss OFI[@MMReview]. A common method for patient selection is the use of audit filters in institutional trauma registries[@MMReview; @Audit]. Audit filters flags patients whose care deviates from a predetermined set of conditions, regarding time frames in which tests or interventions should be provided, or outcomes that are expected to occur[@Audit]. Flagged cases are then reviewed by a trained nurse or physician, and a subset qualify for discussion at a multidisciplinary mortality and morbidity review board meeting[@MMReview].
+
+## Swedish trauma registry
+Sweden has a national trauma registry by the name of SweTrau, which includes data from 48 of its 49 hospitals[@SweTrau]. Its inception in 2012 followed a large European work of consensus regarding data collection, called “The revised Utstein Template for Uniform Reporting of Data following Major Trauma”[@Utstein]. SweTrau contains all patients involved in a traumatic event who consecutively trigger trauma team activation at their local trauma centre and patients retrospectively found to have a “New Injury Severity Score” (NISS) >15. In addition, it includes patients transferred to the hospital, within a week of having suffered a traumatic injury corresponding to a NISS>15. In the registry, 207 pre-hospital, emergency department and in-hospital points of patient data are documented[@SweTrau].
+
+## Care quality database
+At Karolinska University Hospital (KUH) trauma centre in Stockholm, Sweden, all patients treated for major traumatic injuries are included in the hospital’s trauma care quality database (TCQD). For each patient case, the database includes the variable “problem area,” in which a category of OFI, or lack thereof, is documented. All patients are reviewed in an early stage, after which patients whose care has been deemed problematic are discussed at a multidisciplinary mortality and morbidity review board meeting. A review board consensus then determines if there is OFI in patient care, which is later documented in the KUH TCQD. Hitherto, no studies analyzing the data contained in the KUH TCQD have been conducted.
+
+## Gap in knowledge
+Much is known about morbidity and mortality within the Scandinavian trauma population[@mortality, @mortality2, @mortality3, @mortality4, @mortality5], but little is known about the incidence of OFI within it, or how it varies across it. As we strive to improve the quality of trauma care, this is an important gap in knowledge that needs to be addressed. Morbidity and mortality rates alone may impact care, but it is in conjunction with other statistics that they exert their primary relevance. In the absence of sound measures of care quality, it is difficult to draw strong conclusions as to where resources ought to be allocated or where changes need to be made. One could imagine a deadly disease, with a mortality rate closing in on 100%, for which care already has been optimized to its limit; where no mistakes are made. On the contrary, one might imagine another disease, which has been overlooked due to its rather modest mortality rate, and for which no improvement in care has been made. Care for patients suffering from the latter disease is surely of lesser quality, than care for patients of the former. To quantify  incidence rates of OFI in subsets of the Scandinavian trauma population is therefore of the utmost importance.
+
+
+## Aim
+The overarching aim of this study is to further investigate the quality of trauma care at KUH trauma centre in Solna, Sweden.
+
+The specific aims of this study are to: 
+
+* measure the semiannual and cumulative incidence of OFI in the trauma cohorts blunt multisystem, penetrating, shock, severe TBI and geriatric in the KUH TCQD and plot it as a function over time.
+
+* fit the results in a linear model with a time series component, and estimate incidence trends.
+
+
+# Methods
+
+## Study design
+A retrospective cohort study using data from the SweTrau and the KUH TCQD was conducted. The databases were merged, and the patients grouped according to their respective cohorts with a complete case analysis using the programming software R. Data handling and statistical analyses were initially done to a simulated set of data to minimize bias. The semiannual and cumulative incidence of OFI was measured within cohorts. A trend analysis was then conducted by fitting the incidence data into a linear model with a time series component.
+
+## Setting
+KUH trauma centre is an ACS level-1 centre, which manages 1300 trauma patients each year. Trauma patients are triaged in a pre-hospital setting as a priority one or two by assessing vital physiological parameters, anatomical criteria, and mechanism of injury. The pre-hospital system includes a helicopter emergency medical service and three physician staffed ambulances. The in-hospital system includes a multidisciplinary trauma team comprised of a surgeon, an anesthesiologist, an orthopedic surgeon, a radiologist, a surgical nurse, an assistant surgical nurse, a nurse anesthetist, an emergency medicine nurse, an emergency medicine assistant nurse and a radiology nurse. Consultations with associated specialties are available around the clock. The team has immediate access to radiology, surgery, and intensive care.
+
+The monthly multidisciplinary trauma mortality and morbidity review boards selects patients from the trauma registry using audit filters: systolic blood pressure less than 90; Glasgow coma scale (GCS) less than 9 and not intubated; injury severity score (ISS) more than 15 but not admitted to the intensive care unit; time to acute intervention more than 60 minutes; time to computed tomography more than 30 minutes; and death within 30 days after trauma. The board is comprised of representatives from all disciplines involved in trauma care - surgery, neurosurgery, orthopedics, anesthesia and intensive care, nursing, and radiology. Its purpose is to reach a consensus regarding the presence of OFI and implement appropriate corrective actions (see figure \@ref(fig:swetrau-flowchart)).
+
+```{r swetrau-flowchart, fig.cap="\\textbf{SweTrau to OFI.} \\emph{SweTrau: Swedish Trauma Registry, OFI: opportunities for improvement, KUH TCQD: Karolinska University Hospital's trauma care quality database}", out.width="40%", fig.align="center", echo=FALSE, message=FALSE, warning=FALSE}
+knitr::include_graphics("swetrau_flowchart.pdf")
+```
+
+
+## Participants
+
+### Study population
+We included all trauma patients in the KUH TCQD between 2013 and 2021. The KUH TCQD contains all patients in SweTrau, treated for traumatic injuries at KUH. SweTrau includes all patients admitted with trauma team activation, as well as patients admitted without trauma team activation, but retrospectively found to have a new injury severity score (NISS) of greater than 15. Excluded are patients who trigger trauma team activation despite not having suffered a traumatic injury and patients whose solitary injury is chronic subdural hematoma. Moreover, excluded from the study are all patients aged 14 or below and all patients missing data about OFI.
+
+### Cohorts
+Grouping was conducted pertaining to directives from the ACS TQIP, using the Abbreviated Injury Scale (AIS) grading system, which forms a number of seven digits indicating (i) region of injury, (ii) type of anatomical structure, (iii) specific anatomical structure, (iv) level of injury and (v) severity of injury[@TQIP; @AIS]. Patients were grouped by principal mechanism of injury (blunt, penetrating), post-injury condition (shock, severe traumatic brain injury) and age. The decision to study these cohorts was one taken in accordance with local directives, limitations to the data contained in SweTrau and KUH TCQD, and the time and resources dedicated to this project. Presented below are inclusion and exclusion criteria by cohort.
+
+**Cohort inclusion and exclusion criteria**
+
+Cohort  | Inclusion criteria  | Exclusion criteria
+------------- | ------------- | ------------------
+Severe blunt multisystem injuries  | Blunt injuries with an AIS severity of 3 or greater in at least 2 of the following body regions: head, face, neck, thorax, abdomen, spine, upper, or lower extremity
+Severe penetrating injuries | Penetrating truncal injury with an AIS severity of 3 or greater in the regions of the neck, chest or abdomen
+Severe TBI    | Head injury with an AIS severity of 3 or greater and an ED GCS of less than 9  | Injuries in separate AIS body region with an AIS severity of 3 or greater
+Shock       | ED systolic blood pressure less than 90 mm Hg
+Geriatric    | Aged 65 years or greater
+*AIS: Abbreviated Injury Scale, TBI: traumatic brain injury, ED: emergency department, GCS: Glasgow coma scale, mm Hg: millimeter of mercury*
+
+## Variables
+Five quantitative variables was used to determine cohort eligibility: age, pre hospital systolic BP, emergency department systolic BP, AIS body region and AIS severity score. They were converted into qualitative variables by division of patients into groups defined by a numerical range (e.g. ages 15-65). Initial cohort data is presented in a descriptive table (See table \@ref(tab:descriptive-table)). Continuous variables are presented as mean, median and interquartile range. Categorical variables are presented as percentages.
+
+### Outcome variable
+The dichotomous variable OFI (true or false), derived from the variable “problem area” in the KUH TCQD was used as outcome measure. If a multidisciplinary mortality and morbidity review board has reached a consensus regarding the presence of a problem in patient care in at least one of the areas: emergency department triage; tertiary survey; processing; communication; time to computed tomography; time to surgical intervention; level of physician and nursing competency; level of care; neurosurgical intervention; hospital staff routine; resource management; logistics and technology; overall management and documentation, the OFI variable is marked as "true". If a patient case is not discussed at a review board conference, or if the conference is unable to find a significant error in care, the OFI variable is marked false.
+
+## Statistical methods
+Data handling and statistical analyses was conducted in the statistical programming software R. Data from SweTrau and KUH TCQD were extracted, matched by patient id and merged. Non-essential columns of variables were removed. Non-informational values were systematically changed to informational ones or removed as per instruction in the SweTrau Manual[@SweTrau]. Patients were grouped and excluded according to cohort definitions, inclusion criteria and exclusion criteria listed above. Once grouping and exclusion was done satisfactorily, the semiannual and cumulative incidence of OFI was calculated for each cohort and for the study population in its entirety. A linear regression model with a time series component was then applied to the data to estimate the trends of these incidences over time. Excluded patients, as well as their reason for exclusion, were documented in a flowchart. Statistical significance was defined as P<0,05 with a 95% confidence interval.
+
+### Bias
+The method and algorithm for data analysis were developed on a step-by-step basis using simulated data. It was rigorously tested throughout its development process, until the results using the simulated data set was satisfactory. The algorithm was then reviewed by a trained programmer and statistician. Following approval, the algorithm was not changed, and the data as a result not skewed by the bias of the developer. Selection bias, caused by the inclusion criteria for the KUH TCQD and SweTrau, is possible.
+
+## Contributions
+This project has a counterpart, conducted by student Hussein Albaaj, which is also supervised by Martin Gerdin Wärnberg and Jonatan Attergrim. His projects contain similar elements to mine, why there has been some cooperation. The cooperation has been exclusively focused on the programming aspects of the projects, mainly by sharing chunks of code applicable to data handling and statistical analyses. There has been no cooperation in the writing of the paper, nor in the more advanced aspects of programming, as our aims diverge to the degree that it wouldn't have been fruitful. 
+
+## Ethical considerations
+### Autonomy
+All patient data were collected prior to the start of this study as a part of the Swedish trauma registry, and the KUH TCQD. No new data had to be collected to perform the analyses. To my knowledge, patients are not asked for permission before inclusion in SweTrau and the KUH TCQD.
+
+### Justice
+SweTrau and KUH TCQD includes severely injured and deceased patients, but since they are the study group in question, they have to be included. Patients with protected identities are categorically excluded from SweTrau and KUH TCQD. The study is population based and data is handled restrictively and access given exclusively for the duration of the study. Potential benefits following this study outweigh by a clear margin, potential costs.
+
+### Beneficence
+The study is conducted in adherence to good scientific quality. The findings from this study may influence trauma care at KUH trauma centre; directly impacting mortality and morbidity in the Swedish trauma cohorts. Furthermore, it is important academically, as it fills an important gap of knowledge, demonstrates the value of the TCQD and acts hypothesis generating.
+
+### Non-maleficence
+The study does not risk harming study participant nor does it damage public confidence in the scientific method. This study does not risk stigmatization of a patient- or societal group. The benefits of this study far outweigh its costs.
+
+### Ethical review number: 
+2021-02541, 2021-03531
+
+
+# Results
 
 
 ## Participants 
-Over the pre-specified study period, `r nrow(datasets$problem)` patients were included in the the KUH trauma care quality database. Of those, `r nrow(fewer_variables)` (`r round(nrow(fewer_variables)/nrow(datasets$problem)*100, digits=1)`%) patients were aged 14 or above and had sufficient data regarding OFI (see figure \@ref(fig:exclusion-flowchart)). The blunt multisystem cohort was comprised of `r nrow(blunt_multisystem_cohort)` patients; penetrating of `r nrow(penetrating_cohort)` patients; severe TBI of `r nrow(severe_tbi_cohort)` patients; shock of `r  nrow(shock_cohort)` patients and geriatric of `r nrow(geriatric_cohort)` patients. Four categories of data were necessary for grouping: emergency department gcs and systolic blood pressure, dominant injury type (blunt or penetrating) and age. `r Exclusion_table$Missing[3]` patients lacked data about emergency department gcs and `r Exclusion_table$Missing[4]` patients lacked data about emergency department blood pressure. No patients lacked data about dominant injury type  or age (see Table \@ref(tab:exclusion-table)).
+Over the pre-specified study period, `r nrow(datasets$problem)` patients were included in the the KUH TCQD. 5951 patients were excluded due to the database lacking OFI data for patients with an ED arrival prior to 2017. `r nrow(fewer_variables)` (`r round(nrow(fewer_variables)/nrow(datasets$problem)*100, digits=1)`%) patients were aged 15 or greater and had sufficient data regarding OFI (see figure \@ref(fig:exclusion-flowchart)). The blunt multisystem cohort was comprised of `r nrow(blunt_multisystem_cohort)` patients; penetrating of `r nrow(penetrating_cohort)` patients; severe TBI of `r nrow(severe_tbi_cohort)` patients; shock of `r  nrow(shock_cohort)` patients and geriatric of `r nrow(geriatric_cohort)` patients. Four categories of data were necessary for grouping: age, emergency department gcs, emergency department systolic blood pressure and dominant injury type (blunt or penetrating). 932 patients lacked data about age, `r Exclusion_table$Missing[3]` patients lacked data about emergency department gcs and `r Exclusion_table$Missing[4]` patients lacked data about emergency department blood pressure. No patients lacked data about dominant injury type.
 
-```{r exclusion-flowchart, echo=FALSE, fig.cap="\\textbf{Exclusion flowchart.} Excluded are all patients patients treated between 2013 and 2017, as they systematically lack data about OFI. Furthermore, excluded are patients aged 14 and below. \\emph{TBI: traumatic brain injury.}", out.width="100%", fig.align="center"}
+```{r exclusion-flowchart, echo=FALSE, fig.cap="\\textbf{Exclusion flowchart.} Excluded are all patients patients treated prior to 2017, as they were found to systematically lack data about OFI. \\emph{TBI: traumatic brain injury, ED GCS: emergency department Glasgow coma scale, ED SBP: emergency department systolic blood pressure.}", out.width="100%", fig.align="center"}
 knitr::include_graphics("exclusion_flowchart.pdf")
 ```
 
-
-
-```{r exclusion-table, echo=FALSE, warning=FALSE, message = FALSE}
-library(kableExtra)
-
-Exclusion_table %>%
-   kbl(caption = "\\textbf{Missing data by cohort.} In table 1, the variable \\emph{Type} refers to the category of data required to group patients into a specified cohort. \\emph{Missing} refers to the number of patients lacking sufficient data in said category", col.names = c("Cohort","Type",
-                           "Missing",
-                           "%")) %>%
-  kable_classic_2(html_font = "Cambria") %>%
-  row_spec(0, bold= TRUE) %>%
-  kable_styling(latex_options = "HOLD_position", full_width = F, position = "center")
-
-incidence.data$numbers <- c(1:9)
-model <- lm(incidence_blu ~ numbers, data=incidence.data)
-
-
-```
-*ED SBP: emergency department systolic blood pressure, ED GCS: emergency department Glasgow coma scale sum.*
  
 ## Descriptive data
 Table \@ref(tab:descriptive-table) presents patient demographics in the trauma cohorts. The `r colnames(cum_inc)[apply(cum_inc,1,which.max)]` cohort had the highest percentage of OFI with `r round(max(cum_inc), digits=1)`% and the`r colnames(cum_inc)[apply(cum_inc,1,which.min)]` cohort the lowest with `r round(min(cum_inc), digits=1)`%. The severe TBI cohort had the highest 30-day-mortality with `r round(max_percent_dead, digits=1)`%, followed by the shock cohort with `r round(second_max_percent_dead, digits=1)`%. The study population is male-dominated with `r round(percent_male, digits=1)`% men. The two cohorts with the highest average NISS was blunt multisystem and severe TBI with 34,0.
@@ -664,10 +837,8 @@ Table \@ref(tab:descriptive-table) presents patient demographics in the trauma c
 
 
 
-```{r descriptive-table, echo=FALSE, warning=FALSE}
-library(dplyr)
+```{r descriptive-table, echo=FALSE, warning=FALSE, message=FALSE}
 library(kableExtra)
-   
 pt_demographics <- table1(~ OFI + pt_age_yrs + Gender + ed_gcs_sum  + ed_sbp_value + NISS + res_survival | Cohort, data=merged_cohorts, caption="\\textbf{Cohort demographics}", overall = FALSE)
 
 t1kable(pt_demographics) %>% 
@@ -682,9 +853,9 @@ t1kable(pt_demographics) %>%
 
 
 ## Incidence
-In the study population, total incidence of OFI ranged from  `r round(min(incidence.data$incidence_all), digits=2)`% to   `r round(max(incidence.data$incidence_all), digits=2)`% (see figure \@ref(fig:incidence-graph)). The highest recorded biannual incidence was `r round(max(incidence), digits=2)`% in the `r colnames(incidence)[apply(cum_inc,1,which.max)]` cohort. The cumulative incidence rate varied across cohorts, as well as temporally within cohorts (see figure \@ref(fig:cumulative-incidence-graph)). The cohort with the largest cumulative incidence was `r colnames(cum_inc)[apply(cum_inc,1,which.max)]` (`r round(max(cum_inc), digits=2)`%)  and the cohort with the lowest was `r colnames(cum_inc)[apply(cum_inc,1,which.min)]` (`r round(min(cum_inc), digits=2)`%). The cumulative incidence in the trauma population in its entirety was `r round(max(cum_inc$cum_inc_all), digits=2)`%.
+In the study population, total incidence of OFI ranged from  `r round(min(incidence.data$incidence_all), digits=2)`% to   `r round(max(incidence.data$incidence_all), digits=2)`% (see figure \@ref(fig:incidence-graph)). The highest recorded semiannual incidence was `r round(max(incidence), digits=2)`% in the severe TBI cohort. During the second half of 2017 and the first half of 2018, overall semiannual incidence is down. The cumulative incidence rate varied across cohorts, as well as temporally within cohorts (see figure \@ref(fig:cumulative-incidence-graph)). The cohort with the largest cumulative incidence was `r colnames(cum_inc)[apply(cum_inc,1,which.max)]` (`r round(max(cum_inc), digits=2)`%) and the cohort with the lowest was penetrating (`r round(min(cum_inc), digits=2)`%). The cumulative incidence in the overall trauma population was `r round(max(cum_inc$cum_inc_all), digits=2)`%.
 
-```{r incidence-graph, fig.cap="\\textbf{Biannual incidence of OFI.} Percentage of OFI of cases reviewed with a six month interval (2017-2021). \\emph{OFI: opportunities for improvement, TBI: traumatic brain injury.}", latex_options = "HOLD_position", echo=FALSE, warning=FALSE, out.width="85%", fig.align="center"}
+```{r incidence-graph, fig.cap="\\textbf{Semiannual incidence of OFI.} Percentage of cases reviewed with OFI, measured with a six month interval (2017-2021). \\emph{OFI: opportunities for improvement, TBI: traumatic brain injury.}", latex_options = "HOLD_position", echo=FALSE, warning=FALSE, out.width="85%", fig.align="center"}
 library(ggplot2)
 incidence_plot
 ```
@@ -700,14 +871,14 @@ cum_incidence_plot
 
 
 ## Trends
-Table \@ref(tab:trend-table) presents the outcome of a fitted linear model with a time series component. All cohorts had a negative incidence trend estimate. With statistical significance defined as p<0,05, no trends were considered significant. The steepest trend estimate were that of Severe TBI with -0.017 (CI y-y, p=0,089). Closest to having a statistically significant trend was the shock cohort with p=0,0517.
+Table \@ref(tab:trend-table) presents the outcome of a fitted linear model with a time series component. All cohorts had a negative incidence trend estimate. With statistical significance defined as p<0,05, no trends were statistically significant. The steepest trend estimate was that of Severe TBI with -0.017 (CI y-y, p=0,089). Closest to having a statistically significant trend was the shock cohort with p=0,0517.
 
 
-```{r trend-table, echo=FALSE, warning=FALSE}
+```{r trend-table, echo=FALSE, warning=FALSE, message = FALSE}
 library(kableExtra)
 
-incidence_trend_table %>%
-  kbl(caption = "\\textbf{Incidence trends}", col.names = c("Cohort","Estimate",
+incidence_trend_table %>% 
+  kbl(caption = "\\textbf{Temporal incidence trends.} The trend estimate represents the linear models expected decline in OFI incidence every 6 months.", col.names = c("Cohort","Estimate",
                            "Standard error",
                            "Statistic", "P value")) %>%
   kable_classic_2(full_width = F, html_font = "Cambria") %>%
@@ -717,3 +888,40 @@ incidence_trend_table %>%
 
 *TBI: traumatic brain injury, CI: confidence interval.*
 
+# Discussion
+
+
+## Key results
+The main objective of this study was to measure the semiannual and cumulative incidence of OFI in the trauma cohorts blunt multisystem, penetrating, severe TBI, shock and geriatric at KUH trauma centre to obtain rough estimates of care quality throughout the trauma population, independent of mortality or morbidity rates. There was sizable variance in the cumulative incidence of OFI across the trauma cohorts; the lowest being in the general trauma population with 5.8%, closely followed by the penetrating cohort with 6%; and the highest being in the blunt multisystem cohort with 17,7%. The highest semiannual incidence of OFI was 35,7% in the severe TBI cohort. Both the penetrating cohort and the severe TBI cohort had a semiannual incidence low of 0%. Between the middle of 2017 and the middle of 2018, overall semiannual incidence of OFI drops. All cohorts and the study population overall had negative temporal incidence trend estimates suggesting a downtrend, although no p-values were below 0,05. 
+
+
+
+## Limitations
+There are several limitations to this study. First: there was a great deal of overlap across cohorts, forcing me to refrain from performing statistical analyses across cohorts. It is as a result not a comparative study, but a descriptive one, which impairs its ability to draw strong conclusions. The method for patients selection to multidisciplinary mortality and morbidity review board meetings relies heavily on audit filters. There is at present no consensus in the trauma literature as to which audit filters are effective: they are chosen, not by careful scientific scrutiny, but by personal preference and well substantiated guesses. Consequently, there is a probability of selection bias that is by no means insignificant, as the choice of audit filters dictates which patients are discussed. Further studies seeking to validate or disqualify the audit filters used at KUH trauma centre should be conducted. The nature of the high variance within cohorts in temporal incidence of OFI, complicates and waters down the results of the incidence trend analysis. A longer study period would allow for larger interval, which in turn ought to result in more patients, less variation and more significant results. 
+
+In 2018, KUH moved to new premises, a process which was wearisome and may have impacted the quantity of patients reviewed. There are a significant downtrend around 2018 in the semiannual incidence graph, and that may partly be due to the move. OFI in care rendered is more likely to be found in patients with outcomes severe enough to draw attention or trigger audit filters, errors in care with less severe outcomes are likely to be overlooked. Therefore, it cannot be claimed that OFI is a true measure for quality of care, but rather a measure of the number of errors in severely injured patients, with severe consequences. As the average injury severity varies across cohorts, that introduces another source of bias: cohorts with a higher average injury severity should have a higher incidence of OFI. It can be argued, however, that it is for severe patient cases with severe outcomes, that the measure exerts its principal relevance, and that it does not matter much if errors in less severe cases are tossed aside: those are not the errors that matter. 
+
+
+## Interpretation
+At KUH trauma centre, the proportional number of serious preventable errors in care in patients belonging to the blunt multisystem cohort, as illustrated by the cumulative incidence of OFI, outnumber those of the other cohorts by a significant margin. In caring for patients of that group, nearly one serious error occurs for every five patients admitted to the emergency room. In light of this, one can say with some certainty that there is significant room for improvement in care for patients with severe blunt multisystem injuries at KUH trauma centre. These results are not unambiguous however: in cumulative incidence of OFI there is not a single outlier, but rather a continuum and should be interpreted as such. Patients belonging to the penetrating cohort experience fewer errors in care than patients belonging to the geriatric cohort, which in turn experience fewer errors than patients belonging to the shock and severe TBI cohorts and so forth.
+
+Although no statistical analyses have been conducted to confirm this, there appears to be a correlation between a high average NISS and a high cumulative incidence of OFI in the descriptive table \@ref(tab:descriptive-table). As discussed in the limitations section, that is to be expected. NISS represents injury severity which not only affects the likelihood to be discussed at a multidisciplinary mortality and morbidity conference, but also the complexity of management which in turn increases the risk of errors in care. On the basis of these results, one might advocate for a larger role of injury severity scores in patient management, but that may be superfluous. A patient with a high injury severity score is obviously already severely injured, hence the scoring, and recommendations arising from the scoring are likely to become circular.  
+
+The notable temporal variance within cohorts in the semiannual incidence graph warrants further explanation. The overall trend of OFI appears at glance to point downwards, which is strengthened by our trend analysis, but several cohorts experience violent shifts in amplitude at several points in time. This would suggest either that the frequency of measurement is too narrow and the population size as a result too small, or that KUH trauma centre experiences radical back-and-forth shifts in patient management. The former appears to be more probable: the severe TBI cohort has the lowest number study participants (n=96), and also coincidentally the most drastic shifts in amplitude. This study would benefit from larger patient cohorts, either by loosening the cohort inclusion criteria, turning it into a multicenter study or expanding the study period.
+
+The linear trend model predicts negative trends for all cohorts and for the overall study population. Due to the large swings in amplitude, no statistically significant trends have been determined. The trends estimates are small, with confidence intervals spanning both positive and negative values and although they are suggestive of downtrends, the direction (positive or negative) of the trend cannot be accurately determined. A negative trend could go some distance towards validating the effectiveness of trauma quality improvement through multidisciplinary mortality and morbidity conferences. As have been repeated almost strenuously throughout the discussion, a longer study period and less frequent measurements would have garnered better results.
+
+In order for these results to be practically applicable at KUH trauma centre or any other institution, the isolated fact that errors exist is not sufficient. In addition it needs to be known where they occur and what they are. A similar study, stratifying OFI in each cohort by specific errors, would go much further in terms of applicability. In the trauma literature, most studies concerning OFI  are solely focused on finding new, or validating existent OFI. I would argue that the way forward is not entirely qualitative, or quantitative, but a composite. 
+
+## Generalisability
+The study results are directly applicable to trauma patients at KUH trauma centre as they constitute the study population. The findings might also be valuable for other Scandinavian level-I trauma centres, as they are similar in many aspects, and care for populations with similar demographic characteristics and burden of disease as that of KUH trauma centre. There are a multitude of differences however, why the study ought to be replicated at another institution prior to drawing strong conclusions. The external validity pertaining to other Swedish trauma centres is not as great, as they generally care for less severe patients and differ in their organisational structure.
+
+### Equity (KI)
+Trauma is primarily a male disease, something which is evident in this study as 68% of participants are members of the male sex (See table \@ref(tab:descriptive-table)). As with any discipline, practice makes perfect: there is a volume outcome relationship in trauma care. Consequently, one could be tempted to believe that care received by the female trauma population is inferior to that of the male trauma population. However, several large, multicenter studies investigating the relationship between sex and outcome in trauma care have not found a positive correlation between female sex and increased mortality or morbidity[@Female1; @Female2; @Female3; @Female4]. To the contrary, a large multicenter study from the Netherlands found a negative correlation between female sex and increased mortality[@Female3]. This study has not stratified by sex for the statistical analyses, and is as such unable to speak towards the relationship between sex and OFI at KUH trauma centre. Further studies investigating the relationship between sex and OFI following traumatic injuries should be conducted. 
+
+## Funding
+*Vet inte riktigt vad jag ska skriva här*
+This research project is associated with the the Institution for Global Public Health at Karolinska Institute and funded by grants allocated to Martin Gerdin Wärnberg MD, PhD by the XXX-foundation, as part of a larger project. The XXX-foundation is an independent pro bono organisation supporting Swedish medical research.
+
+
+# References
