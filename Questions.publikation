@@ -1,0 +1,33 @@
+
+Frågor om upplägg/analyser:
+
+1. Jag vill förkorta opportunities for improvement in care provided för att undvika massvis med upprepningar, får jag det? Isåfall, bör jag kalla det OFI? Bör jag behålla ”in care provided”? Bör jag kalla det för någonting nytt (typ OFIICP)?  
+2. Trendanalys: regressionsanalyser bör väl egentligen göras på minsta möjliga skala, dvs utan uppskattningar. Min analys är gjord på mina värden för 6-månadersincidens (9 mätpunkter). Jag kan göra om analysen för varje datum, istället för var 6 månad, och då få väldigt många mätvärden och ett statistiskt signifikant resultat. Jag får då svar på om det tycks vara en nedgång eller uppgång. Däremot skulle resultatet säga lite om någon siffra som går att relatera till. Tankar?
+3.  Finns det ett värde att ha med stratifiering av problemområden för varje individuell kohort. Iom att det rör sig om så pass få patienter och tar upp mycket plats, känns det som att det blir rörigt istället?
+4. Relativ risk för OFI används nu kort i  diskussionen, men inte i resultatet. Okej att ha det så? Måste det redovisas först i tabell eller fritext i resultatet för att jag ska få använda mig av det?
+5. Kommer vi att få problem med urkund i samband med inskickning av manuskript, då KI lagt upp våra arbeten på nätet?
+6. Bör jag ha med rubriken Future studies, eller inkorporera det i texten?
+7. Bör jag ha med rubriken Conclusion?
+8. ”in care provided” står felaktigt på några ställen i pdf:en, men kan inte knitta pga av felet i nedan (8)
+9. Funding?
+
+Kommentarer.
+
+Har inte rättat tidigare användning av OFI == ”opportunities for improvement in care provided” i versionen som jag pushar!
+Har inte lagt in källor från ki-versionen ännu, men gör inga nya påståenden.
+
+Problem med R.
+
+1. Grafen för kumulativ incidens slutade fungera utan att jag ändrat på koden. Fick error: 
+
+  Error in .Call("rs_createGD") : C symbol name "rs_createGD" not in load table. 
+  
+1.1. Startade då om min r session och fick ett error med create_ofi:
+
+  combined.datasets$OFI <- create_ofi(combined.datasets) gav Error: Elements 3 of c("VK_avslutad", "Problemomrade_.FMP", "Fr1-14"   ) %in% names(data) are not true.
+
+1.2. Bytte då variabelnamn på "Fr1.14" till "Fr1-14” och fick istället error:  
+
+  Error in create_ofi(combined.datasets) : Levels in Fr1-14 have changed.
+  
+2. Lyckas inte med konfidensintervall till trendanalysen.
