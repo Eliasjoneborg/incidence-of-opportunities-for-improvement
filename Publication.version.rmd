@@ -1107,6 +1107,8 @@ We have outlined the distribution of OFI across four trauma cohorts. This has cl
 Among other things, the use of audit filters[@CochraneAF], the structure of morbidity and mortality reviews[@MMCandSelection] and the panorama of injury differs across institutions. Adding to the previous statement our limited patient sample renders our study low in external validity. We can not say with any certainty that our findings would be replicated had our study been conducted elsewhere.
 
 ## Conclusion
-Cumulative incidence of OFI was unequally distributed among the trauma cohorts. Patients with severe blunt multisystem injuries without a severe traumatic brain injury had higher odds of experiencing OFI than patients in the other cohorts. Future studies should continue to supplement the thin literature on rates of OFI and hitherto non-existent literature on OFI distribution across the traumatic spectrum of injury. Moreover, they should seek to validate audit filters as an effective model for multidisciplinary morbidity and mortality review conference selection. 
+Cumulative incidence of OFI was unequally distributed among the trauma cohorts. Patients with severe blunt multisystem injuries without a severe traumatic brain injury had higher odds of experiencing OFI than patients in the other cohorts. Future studies should continue to supplement the thin literature on rates of OFI and hitherto non-existent literature on OFI distribution across the traumatic spectrum of injury. Moreover, they should seek to validate audit filters as an effective model for multidisciplinary morbidity and mortality review conference selection.
 
 # References
+
+
