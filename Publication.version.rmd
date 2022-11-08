@@ -7,6 +7,7 @@ output:
 bibliography: citations.bib
 link-citations: yes
 csl: bmcemerg.csl
+always_allow_html: true
 header-includes:
   \usepackage{float}
  \floatplacement{figure}{H}
@@ -15,6 +16,7 @@ header-includes:
 ```{r setup, include=FALSE }
 #Necessary packages
 
+library(rofi)
 
 library(dplyr)
 library(plyr)
@@ -29,6 +31,10 @@ library(jtools)
 library(ggstance)
 library(lubridate)
 library(grid)
+library(glue)
+library(gtsummary)
+library(flextable)
+
 
 library("keyring")
 library("DBI")
@@ -36,7 +42,6 @@ library("RMariaDB")
 library("readr")
 library(dotenv)
 library(devtools)
-library(rofi)
 
 conn <- DBI::dbConnect(drv = RMariaDB::MariaDB(),
                        user = "eliasj",
@@ -65,26 +70,53 @@ all_patients <-combined.datasets
 
 combined.datasets <- filter(combined.datasets, as.Date(strptime(combined.datasets$Ankomst_te.x, format = "%Y%m%d %H:%M")) >="2017-01-01")
 
+### Jonatans kod för flowchart:
+clean_audit_filters <- function(data) {
+  audit.filter <- c("VK_hlr_thorak","VK_sap_less90","VK_leverskada",
+                    "VK_gcs_less9_ej_intubTE","VK_mjaltskada","VK_mer_30min_DT",
+                    "VK_mass_transf","VK_mer_60min_interv","VK_iss_15_ej_iva",
+                    "VK_ej_trombrof_TBI_72h","VK_iss_15_ej_TE","VK_avslutad","VK_annat")
+  audit.filter2 <- c("VK_hlr_thorak","VK_sap_less90","VK_leverskada",
+                     "VK_gcs_less9_ej_intubTE","VK_mjaltskada","VK_mer_30min_DT",
+                     "VK_mass_transf","VK_mer_60min_interv","VK_iss_15_ej_iva",
+                     "VK_ej_trombrof_TBI_72h","VK_iss_15_ej_TE","VK_annat")
+  data[,audit.filter][data[,audit.filter] == "Ja"|
+                        data[,audit.filter] == "ja"] <- "Yes"
+  data[,audit.filter][data[,audit.filter] == "Nej"|
+                        data[,audit.filter] == "nej" |
+                        data[,audit.filter] == "nj\r\nNej" |
+                        data[,audit.filter] == "nj"] <- "No"
+  ##### Is nn = NA or No???
+  data[,audit.filter][data[,audit.filter] == "nn"] <- NA
+  ### Create reference vector to check for false inputs in the audit filters.
+  Levels.audit.filters <- unique(as.vector(as.matrix(data[,audit.filter])))
+  Levels.audit.filters <- Levels.audit.filters[!is.na(Levels.audit.filters)]
+  #####
+  ##.   SIC (!!!) The safety check is not compatible with a bootsrap, replications probably lack one of the original values.
+  ######
+  #original.levels.audit.filters <- sort(c("Yes", NA, "No"))
+  #if (!identical(Levels.audit.filters, original.levels.audit.filters))
+  #  stop ("Levels in Audit filters have changed")
+  #########
+  #  Convert NA:s in VK rows to No if VK_avslutad = Yes (To be able to calc false neg)
+  #########
+  data[, audit.filter2] <- lapply(data[, audit.filter2], function(column) {
+    column[is.na(column) & data$VK_avslutad == "Yes"] <- "Yes"
+    return (column)
+  })
+  return(data)
+}
 
-combined.datasets <- dplyr::rename(combined.datasets, "Fr1-14" = Fr1.14)
+#combined.datasets <- dplyr::rename(combined.datasets, "Fr1-14" = Fr1.14)
 
 combined.datasets$OFI <- create_ofi(combined.datasets) 
- 
-datasets$kvalgranskning2014.2017$OFI <- with(datasets$kvalgranskning2014.2017, ifelse(problemområde == "Inget problemområde" | is.na(problemområde) | problemområde =="Nej", "No", "Yes"))
-
-datasets$kvalgranskning2014.2017$arrival <- as.POSIXct(strptime(datasets$kvalgranskning2014.2017$DateTime_ArrivalAtHospital, format = "%Y-%m-%d %H:%M"))
-                                                       
-datasets$kvalgranskning2014.2017$id <- paste(datasets$kvalgranskning2014.2017$arrival, datasets$kvalgranskning2014.2017$pat_personnummer, datasets$kvalgranskning2014.2017$pat_TempPersonnummer)
-
-combined.datasets <- merge(combined.datasets, datasets$kvalgranskning2014.2017, by = intersect(names(datasets$kvalgranskning2014.2017), names(combined.datasets)), all.x = TRUE)
-
-sum(duplicated(combined.datasets$id))
-sum(combined.datasets$OFI == "Yes")
 swetrau_problem_merged <- combined.datasets
 
 swetrau_problem_merged$OFI <- with(swetrau_problem_merged, ifelse(is.na(OFI) | OFI == "No", "No", "Yes")) 
 known_problem_area <-swetrau_problem_merged[!is.na(swetrau_problem_merged$OFI),]
 #remove unknown problem area
+
+dataset.clean.af <- clean_audit_filters(combined.datasets)
 
 age_over_14 <- filter(known_problem_area, pt_age_yrs>14)
 
@@ -206,18 +238,23 @@ for (i in 1:nrow(known_dominant_injury_pen)) {
 #penetrating <- TRUE/FALSE
 
 
-#SEVERE TBI
+#ISOLATED SEVERE TBI
 head_region <- function(code) {
+  code <- code[!is.na(code)]
   region <- substr(as.character(code), 1, 1)
   is.element(region, 1)
 }
 
 #returns true if body region == 1
+is_serious <- function(code) {
+  severity <- substr(as.character(code), 8, 8)
+  as.numeric(severity) >= 3  
+}
 
 has_a_serious_head_injury <- function(code) {
-  code <- code[!is.na(code)]
-  serious_injury <- is_serious(code)
-  head_region(code[serious_injury]) 
+    code <- code[!is.na(code)]
+    serious_injury <- is_serious(code)
+ head_region(code[serious_injury]) == TRUE 
 }
 
 #acts on vectors in "serious_injury", chooses those which have region == 1
@@ -258,32 +295,87 @@ if (has_a_serious_head_injury(known_gcs_or_intub_type[v, grepl("AISCode", names(
 }
 
 
-#### MERGING 
 
+### NEW COHORTS
+
+### SEVERE TBI
+
+has_a_serious_head_injury_new <- function(code) {
+     code <- code[!is.na(code)]
+     serious_injury <- is_serious(code)
+  sum(head_region(code[serious_injury]) == TRUE )
+ }
+ 
+for (i in 1:nrow(known_gcs_or_intub_type)) {v = 0+i
+if (has_a_serious_head_injury_new(known_gcs_or_intub_type[v, grepl("AISCode", names(known_gcs_or_intub_type))]) >=1 && known_gcs_or_intub_type[v, "gcs_below_9"] == TRUE) {
+     known_gcs_or_intub_type[v,"not_isolated_tbi"] <- TRUE
+   } else {
+     known_gcs_or_intub_type[v,"not_isolated_tbi"] <- FALSE
+   }
+}
+
+### 154 instead of 96 which was what isolated TBI had
+
+### NEW DF
 blunt_multisystem_cohort <- filter(known_dominant_injury, blunt_multisystem == "TRUE")
 shock_cohort <- filter(known_blood_pressure, shock == "TRUE")
 penetrating_cohort <- filter(known_dominant_injury_pen, penetrating == "TRUE")
 geriatric_cohort <- filter(known_age, geriatric == "TRUE")
-severe_tbi_cohort <-filter(known_gcs_or_intub_type, severe_tbi == "TRUE")
+isolated_severe_tbi_cohort <-filter(known_gcs_or_intub_type, severe_tbi == "TRUE")
+severe_tbi_cohort <- filter(known_gcs_or_intub_type, not_isolated_tbi== "TRUE")
 overall <- fewer_variables
+
+
+### BLUNT MULTISYSTEM AND SEVERE TBI
+
+BM_and_TBI_cohort <- merge(blunt_multisystem_cohort, severe_tbi_cohort[, c("id", setdiff(colnames(severe_tbi_cohort),colnames(blunt_multisystem_cohort)))], by="id")
+
+### BLUNT MULTISYSTEM NO SEVERE TBI
+BM_no_TBI_cohort <- blunt_multisystem_cohort[!blunt_multisystem_cohort$id %in% severe_tbi_cohort$id, ]
+
+### FOUR RELEVANT COHORTS
+
+# 1: BLUNT MULTISYSTEM NO TBI (n=407)
+BM_no_TBI_cohort
+# 2: BLUNT MULTISYSTEM AND TBI (n=56)
+BM_and_TBI_cohort
+# 3: ISOLATED SEVERE TBI (n=96)
+isolated_severe_tbi_cohort
+# 4: PENETRATING COHORT (n=183)
+penetrating_cohort
+
+#### MERGING 
+
+  #merging cohorts
+ four_cohorts <- Reduce(function(x, y) merge(x, y, all=TRUE),
+                                     list(isolated_severe_tbi_cohort, BM_and_TBI_cohort, BM_no_TBI_cohort, penetrating_cohort, isolated_severe_tbi_cohort))
+
+ #removing overlaps
+ remaining_cohort <- overall[!overall$id %in% four_cohorts$id, ]
+
+
+
 #creating cohort df:s
 
+ #creating common variable "cohort"
+
  geriatric_cohort$Cohort <- "Geriatric"
- penetrating_cohort$Cohort <- "Penetrating"
+ penetrating_cohort$Cohort <- "PT"
+ isolated_severe_tbi_cohort$Cohort <- "TBI"
  severe_tbi_cohort$Cohort <- "Severe TBI"
  shock_cohort$Cohort <- "Shock"
  blunt_multisystem_cohort$Cohort <- "Blunt multisystem"
+ BM_and_TBI_cohort$Cohort <- "BMTBI"
+ BM_no_TBI_cohort$Cohort <- "BM"
  overall$Cohort <- "Overall"
- #creating common variable "cohort"
- 
-  merged_cohorts <- Reduce(function(x, y) merge(x, y, all=TRUE),
-                                     list(geriatric_cohort, penetrating_cohort, blunt_multisystem_cohort, shock_cohort, severe_tbi_cohort, overall))
+ remaining_cohort$Cohort <- "Remaining"
 
-  #merging cohorts
+  relevant_cohorts <- Reduce(function(x, y) merge(x, y, all=TRUE),
+                                     list(isolated_severe_tbi_cohort, BM_and_TBI_cohort, BM_no_TBI_cohort, penetrating_cohort, isolated_severe_tbi_cohort, remaining_cohort, overall))
 
-  
-  
-  
+
+
+
 #### PLOTTING
   
   ## FLOWCHARTS                  
@@ -291,45 +383,187 @@ overall <- fewer_variables
   
   
                   
-  #SweTrau to M&M                
-                  
+  #SweTrau to review     
+  
+  
+  ### JONATANS FLOWCHART
+## Data/numbers for flowchart ##
+################################
+df <- subset(dataset.clean.af, dataset.clean.af$tra_DodsfallsanalysGenomford == 1)
+n.df <- nrow(df)
+df2 <- subset(dataset.clean.af, dataset.clean.af$Fr1.14 == 2 | dataset.clean.af$Fr1.14 == 3)
+#df3 <- subset(dataset.clean.af,dataset.clean.af$tra_id == 77521)
+df2 <- df2[,c("VK_avslutad","tra_DodsfallsanalysGenomford","Problemomrade_.FMP","Fr1.14","tra_id","OFI","Deceased")]
+### Yes and No from mortality conferance
+n.df.ofi <- sum(df$OFI == "Yes", na.rm = TRUE)
+n.df.no.ofi <- sum(df$OFI == "No", na.rm = TRUE)
+### Patients who have gone trough dödsfall but have no consensus
+df.exc <- df[is.na(df$OFI) == TRUE, ]
+# qd = quality database
+qd <- subset(dataset.clean.af, dataset.clean.af$VK_avslutad == "Yes")
+qd<- subset(qd, is.na(qd$tra_DodsfallsanalysGenomford) == TRUE  | qd$tra_DodsfallsanalysGenomford == 2 )
+n.qd <- nrow(qd)
+clean.qd <- qd
+audit.qd <- clean.qd[clean.qd$VK_hlr_thorak == "Yes" |
+                            clean.qd$VK_sap_less90 == "Yes" |
+                            clean.qd$VK_leverskada == "Yes" |
+                            clean.qd$VK_gcs_less9_ej_intubTE == "Yes" |
+                            clean.qd$VK_mjaltskada == "Yes" |
+                            clean.qd$VK_mer_30min_DT == "Yes" |
+                            clean.qd$VK_mass_transf == "Yes" |
+                            clean.qd$VK_mer_60min_interv == "Yes" |
+                            clean.qd$VK_iss_15_ej_iva == "Yes" |
+                            clean.qd$VK_ej_trombrof_TBI_72h == "Yes"|
+                          clean.qd$VK_annat == "Yes", ]
+n.audit.qd <- nrow(audit.qd)
+#### Patients with all filters No and VK_avslutad = YES - > Still have 2 OFI!!!??
+allneg.ofi <- clean.qd[clean.qd$VK_hlr_thorak == "No" &
+                            clean.qd$VK_sap_less90 == "No" &
+                            clean.qd$VK_leverskada == "No" &
+                            clean.qd$VK_gcs_less9_ej_intubTE == "No" &
+                            clean.qd$VK_mjaltskada == "No" &
+                            clean.qd$VK_mer_30min_DT == "No" &
+                            clean.qd$VK_mass_transf == "No" &
+                            clean.qd$VK_mer_60min_interv == "No" &
+                            clean.qd$VK_iss_15_ej_iva == "No" &
+                            clean.qd$VK_ej_trombrof_TBI_72h == "No" &
+                            clean.qd$VK_annat == "No" &
+                            clean.qd$OFI == "Yes" , ]
+n.allneg.ofi <- nrow(allneg.ofi)
+### Exkluden in first step
+allneg.no.ofi <- clean.qd[clean.qd$VK_hlr_thorak == "No" &
+                            clean.qd$VK_sap_less90 == "No" &
+                            clean.qd$VK_leverskada == "No" &
+                            clean.qd$VK_gcs_less9_ej_intubTE == "No" &
+                            clean.qd$VK_mjaltskada == "No" &
+                            clean.qd$VK_mer_30min_DT == "No" &
+                            clean.qd$VK_mass_transf == "No" &
+                            clean.qd$VK_mer_60min_interv == "No" &
+                            clean.qd$VK_iss_15_ej_iva == "No" &
+                            clean.qd$VK_ej_trombrof_TBI_72h == "No" &
+                            clean.qd$VK_annat == "No" &
+                              clean.qd$OFI == "No" &
+                            clean.qd$VK_avslutad == "Yes" , ]
+n.allneg.no.ofi <- nrow(allneg.no.ofi)
+### Selected VK_Annat
+n.annat <- nrow(clean.qd[clean.qd$VK_hlr_thorak == "No" &
+                              clean.qd$VK_sap_less90 == "No" &
+                              clean.qd$VK_leverskada == "No" &
+                              clean.qd$VK_gcs_less9_ej_intubTE == "No" &
+                              clean.qd$VK_mjaltskada == "No" &
+                              clean.qd$VK_mer_30min_DT == "No" &
+                              clean.qd$VK_mass_transf == "No" &
+                              clean.qd$VK_mer_60min_interv == "No" &
+                              clean.qd$VK_iss_15_ej_iva == "No" &
+                              clean.qd$VK_ej_trombrof_TBI_72h == "No" &
+                              clean.qd$VK_annat == "Yes" &
+                              clean.qd$VK_avslutad == "Yes" , ])
+### To get the two nurse cohort - First take the cohort with some VK_ and VK_avslutad. Then check which have no OFI.
+nurse <- audit.qd[audit.qd$OFI == "No" & is.na(audit.qd$Problemomrade_.FMP) == TRUE, ]
+## To get the Mortality group just check the cases that hade any VK and then if thay have something in problemområde
+MoM <- audit.qd[is.na(audit.qd$Problemomrade_.FMP) == FALSE , ]
+n.MoM <- nrow(MoM)
+n.MoM.no.ofi <- sum(MoM$OFI == "No")
+n.MoM.ofi <- sum(MoM$OFI == "Yes")
+p.MoM.ofi <- round((n.MoM.ofi/n.qd)*100,digits=2)
+n.allneg.no.ofi <- nrow(dataset.clean.af)-n.df - n.annat - n.audit.qd - 1
+n.2nurse.no.ofi <- n.annat + n.audit.qd - n.MoM
+
+### Fortsättning
+ 
+DiagrammeR::grViz("
+digraph graph2 {
+graph [layout = dot, rankdir = RR, size=60]
+# node definitions with substituted label text
+node [width = 4, fillcolor = Biege, shape = rectangle]
+swetrau [label = '@@1']
+qd [label = '@@2']
+audit [label = '@@3']
+annat [label = '@@4']
+nurse [label = '@@5']
+MoM [label = '@@6']
+MoMnoofi [label = '@@7', shape = plaintext, width = 0]
+df [label = '@@8', shape = plaintext, width = 0]
+ofi [label = '@@9']
+noofi [label = '@@10']
+dfofi [label = '@@11', style = invis]
+dfnoofi [label = '@@12', style = invis]
+nursenoofi [label = '@@13', shape = plaintext, width = 0]
+allneg [label = '@@14', shape = plaintext, width = 0]
+MoMofi [label = '@@15', shape = plaintext, width = 0]
+allnegofi [label = '@@16', shape = plaintext, width = 0]
+swetrau -> qd -> audit -> nurse -> MoM -> MoMnoofi -> noofi
+qd -> annat -> nurse
+MoM -> MoMofi -> ofi
+swetrau -> df -> MoM
+nurse -> nursenoofi -> noofi
+qd -> allneg -> noofi
+qd -> allnegofi -> ofi
+}
+[1]: paste0('Trauma Care Quality Database (n = ', nrow(dataset.clean.af), ')')
+[2]: paste0('Manual review and audit filters (n = ', nrow(dataset.clean.af)-n.df, ')')
+[3]: paste0('Selected via audit filters (n = ', n.audit.qd, ')')
+[4]: paste0('Selected via nursing review (n = ', n.annat, ')')
+[5]: paste0('Secondary review by two nurses (n = ', n.annat + n.audit.qd, ')')
+[6]: paste0('Morbidity and mortality review (n = ', n.MoM + n.df, ')')
+[7]: paste0('(n = ', n.MoM.no.ofi + n.df.no.ofi, ')')
+[8]: paste0('Deceased (n = ', n.df, ')')
+[9]: paste0('OFI(n = ', n.df.ofi + n.MoM.ofi + n.allneg.ofi, ')')
+[10]: paste0('No OFI (n = ', n.df.no.ofi + n.MoM.no.ofi + n.2nurse.no.ofi + n.allneg.no.ofi,  ')')
+[11]: paste0('(n = ', n.df.ofi, ')')
+[12]: paste0('(n = ', n.df.no.ofi, ')')
+[13]: paste0('(n = ', n.2nurse.no.ofi, ')')
+[14]: paste0('(n = ', n.allneg.no.ofi, ')')
+[15]: paste0('(n = ', n.MoM.ofi + n.df.ofi , ')')
+[16]: paste0('(n = ', n.allneg.ofi, ')')
+", height = "500") %>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("ofi-flowchart.pdf")
+
  swetrau_flowchart <- DiagrammeR::grViz("
 digraph graph2 {
 
 graph [layout = dot]
 
 # node definitions with substituted label text
-node [shape = rectangle, width = 4, fillcolor = Biege]
+node [fontname = Helvetica, shape = box, width = 5]
 a [label = '@@1']
 b [label = '@@2']
-d [label = '@@3']
-e [label = '@@4']
-g [label = '@@5']
-h [label = '@@6']
-i [label = '@@7']
-j [label = '@@8']
+c [label = '@@3']
+d [label = '@@4']
+e [label = '@@5']
+f [label = '@@6']
+g [label = '@@7']
+h [label = '@@8']
+i [label = '@@9']
 
+blank [label = '', width = 0.01, height = 0.01]
+
+a -> g
 a -> b
+b -> c
 b -> d
-d -> h [style = dotted label='Audit filter trigger or suspected OFI']
-d -> g [style = dotted label='In need of second opinion']
-d -> e [style = dotted label='No audit filter trigger and no suspected OFI']
-g -> e
+b -> i [label = 'Negative audit filters and OFI not suspected']
+c -> e
+d -> e
+e -> i [label = 'OFI not suspected']
+e -> f
+f -> h
+f -> i
 g -> h
-h -> i
-i -> j
+g -> i
+
 
 }
 
-[1]: paste0('Trauma team activation following major trauma')
-[2]: paste0('Inclusion in SweTrau')
-[3]: paste0('Primary nursing review')
-[4]: paste0('Exclusion')
-[5]: paste0('Secondary nursing review')
-[6]: paste0('Multidisciplinary mortality and morbidity conference')
-[7]: paste0('Consensus regarding existence of OFI')
-[8]: paste0('Documentation in KUH TCQD')
-") %>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("swetrau_flowchart.pdf")                
+[1]: paste0('Trauma Care Quality Database')
+[2]: paste0('Manual review and audit filters')
+[3]: paste0('Selected by nurse')
+[4]: paste0('Selected by audit filters')
+[5]: paste0('Secondary review by two nurses')
+[6]: paste0('Morbidity conference')
+[7]: paste0('Mortality conference')
+[8]: paste0('OFI')
+[9]: paste0('no OFI')
+", height = "100") %>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("swetrau_flowchart.pdf")                
   
 #Stages of exclusion  
                         
@@ -339,11 +573,10 @@ i -> j
    a$b <- nrow(known_problem_area)
    a$c <- nrow(age_over_14)
    a$d <- nrow(fewer_variables)
-   a$e <- nrow(blunt_multisystem_cohort)
-   a$f <- nrow(penetrating_cohort)
-   a$g <- nrow(severe_tbi_cohort)
-   a$h <- nrow(geriatric_cohort)
-   a$i <- nrow(shock_cohort)
+   a$e <- nrow(BM_and_TBI_cohort)
+   a$f <- nrow(BM_no_TBI_cohort)
+   a$g <- nrow(isolated_severe_tbi_cohort)
+   a$i <- nrow(penetrating_cohort)
    a$j <- nrow(problem) - nrow(known_problem_area)
             
   #df with nrow of relevant df:s to be used as reference in code below 
@@ -353,96 +586,134 @@ digraph graph2 {
 
 graph [layout = dot, size=30, ranksep = 2 nodesep = 2]
 
-node [shape = rectangle, height = 2, width = 12, fillcolor = Biege, fontsize = 50, penwidth =6, arrowsize = .5, weight = 2]
+node [fontname = Helvetica, shape = box, height = 2, width = 12, fontsize = 50, penwidth =6]
+
 a [label = '@@1']
 b [label = '@@2']
-d [label = '@@3', arrowhead = none]
-e [label = '@@4']
-f [label = '@@5']
-g [label = '@@6']
+c [label = '@@3']
+d [label = '@@4']
+e [label = '@@5']
+f [label = '@@6']
 h [label = '@@7']
 i [label = '@@8']
 j [label = '@@9']
-k [label = '@@10']
-l [label = '@@11']
-m [label = '@@12']
-
-a -> b 
-a -> j
-b -> l
-b -> k
-l ->m
-l -> d
-d-> {e f g h i}
+blank [label ='', width = 0.01, height = 0.01]
+blank2 [label ='', width = 0.01, height = 0.01]
 
 
-{ rank = same; a; j }
-{ rank = same; b; k }
-{ rank = same; l; m }
- 
-          
+
+a -> blank [arrowhead = none]
+blank -> i
+i -> blank2 [arrowhead = none]
+blank2 -> b
+
+blank -> h
+blank2 -> j
+{rank = same; blank; h;}
+{rank = same; blank2; j;}
+
+
+b -> c
+b -> d
+b -> e
+b -> f
+
+
+
 }
 
-[1]: paste0('Trauma care quality database (n = ', a$a, ')')
-[2]: paste0('Complete OFI data (n = ', a$b, ')')
-[3]: paste0('Eligible for grouping stage (n = ', a$d, ')')
-[4]: paste0('Blunt multisystem (n = ', a$e, ')')
-[5]: paste0('Penetrating (n = ', a$f, ')')
-[6]: paste0('Severe TBI (n = ', a$g, ')')
-[7]: paste0('Shock (n = ', a$i, ')')
-[8]: paste0('Geriatric (n = ', a$h, ')')
-[9]: paste0('ED arrival prior to 2017 (n = ', a$j, ')')
-[10]: paste0('Missing age data (n=932)')
-[11]: paste0('Complete age data (n=5216)')
-[12]: paste0('Age<15 (n=2)')
-", height = "500") %>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("exclusion_flowchart.pdf")   
+[1]: paste0('Trauma care quality database (n = ', a$b, ')')
+[2]: paste0('Eligible for grouping stage (n = ', a$d, ')')
+[3]: paste0('BM (n = ', a$f, ')')
+[4]: paste0('BMTBI (n = ', a$e, ')')
+[5]: paste0('TBI (n = ', a$g, ')')
+[6]: paste0('PT (n = ', a$i, ')')
+[7]: paste0('Missing age data (n=932)')
+[8]: paste0('Complete age data (n=5216)')
+[9]: paste0('Age<15 (n=2)')
 
+", height = "500") %>% DiagrammeRsvg::export_svg() %>% charToRaw() %>% rsvg::rsvg_pdf("exclusion_flowchart.pdf")
 
+  
 
 #### GROUPING AND EXCLUSION TABLE
    
-Cohort <- c("Blunt multisystem", "Penetrating", "Severe TBI", "Shock", "Geriatric")
+Cohort <- c("Isolated Severe TBI", "Blunt multisystem and severe TBI", "Blunt multisystem without severe TBI", "Penetrating truncal", "Remaining", "All")
 Category <- c("Dominant injury type", "Dominant injury type", "ED GCS", "ED SBP", "Age")
 Missing <- c((nrow(fewer_variables)-nrow(known_dominant_injury)),(nrow(fewer_variables)-nrow(known_dominant_injury)), (nrow(fewer_variables)-nrow(known_gcs_or_intub_type)), (nrow(fewer_variables)-nrow(known_blood_pressure)), (nrow(fewer_variables)-nrow(known_age)))
 Missing_as_percent <- c( round(((nrow(fewer_variables)-nrow(known_dominant_injury))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_dominant_injury))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_gcs_or_intub_type))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_blood_pressure))/nrow(fewer_variables)*100), digits = 2), round(((nrow(fewer_variables)-nrow(known_age))/nrow(fewer_variables)*100), digits = 2))
    
-Exclusion_table <- data.frame(Cohort, Category, Missing, Missing_as_percent)
-Exclusion_table
+#Exclusion_table <- data.frame(Cohort, Category, Missing, Missing_as_percent)
 
 
-table(merged_cohorts$ed_gcs_sum)
- #### PATIENT DEMOGRAPHICS 
 
-                  merged_cohorts$res_survival <- with(merged_cohorts, ifelse(res_survival== "1", "Dead", "Alive"))
-                  merged_cohorts$NISS<- as.numeric(merged_cohorts$NISS)
-                  render.continuous.default(merged_cohorts$NISS)
-                  merged_cohorts$pt_age_yrs<- as.numeric(merged_cohorts$pt_age_yrs)
-                  render.continuous.default(merged_cohorts$pt_age_yrs)
-                  merged_cohorts$ed_gcs_sum<- as.numeric(merged_cohorts$ed_gcs_sum)
-                  render.continuous.default(merged_cohorts$ed_gcs_sum)
+
+ 
+
+#### PATIENT DEMOGRAPHICS 
+
+                  relevant_cohorts$res_survival <- with(relevant_cohorts, ifelse(res_survival== "1", "Dead", "Alive"))
+                   relevant_cohorts$inj_dominant <- with(relevant_cohorts, ifelse(inj_dominant== "1", "Blunt", "Penetrating"))
+                   relevant_cohorts$not_isolated_tbi <- with(relevant_cohorts, ifelse(not_isolated_tbi== "TRUE", "Yes", "No"))
+                   relevant_cohorts$not_isolated_tbi <- with(relevant_cohorts, ifelse(is.na(not_isolated_tbi), "No", "Yes"))
+                   
+                  relevant_cohorts$NISS<- as.numeric(relevant_cohorts$NISS)
+                  render.continuous.default(relevant_cohorts$NISS)
+                  relevant_cohorts$pt_age_yrs<- as.numeric(relevant_cohorts$pt_age_yrs)
+                  render.continuous.default(relevant_cohorts$pt_age_yrs)
+                  relevant_cohorts$ed_gcs_sum<- as.numeric(relevant_cohorts$ed_gcs_sum)
+                  render.continuous.default(relevant_cohorts$ed_gcs_sum)
   
-                  label(merged_cohorts$NISS)              <- "NISS"
-                  label(merged_cohorts$ed_sbp_value)     <- "ED SBP"
-                  label(merged_cohorts$pt_age_yrs)        <- "Age"
-                  label(merged_cohorts$ed_gcs_sum)        <- "ED GCS"
-                  label(merged_cohorts$res_survival)        <- "Survival"
-                  label(merged_cohorts$Gender)        <- "Sex"
+                  label(relevant_cohorts$NISS)              <- "NISS"
+                  label(relevant_cohorts$ed_sbp_value)      <- "ED SBP"
+                  label(relevant_cohorts$pt_age_yrs)        <- "Age"
+                  label(relevant_cohorts$ed_gcs_sum)        <- "ED GCS"
+                  label(relevant_cohorts$res_survival)      <- "Survival"
+                  label(relevant_cohorts$Gender)            <- "Sex"
+                  label(relevant_cohorts$inj_dominant)      <- "Dominant injury type"
+                  label(relevant_cohorts$OFI)               <- "OFI"
+                  label(relevant_cohorts$not_isolated_tbi)  <- "S-TBI"
                   
-                  label(merged_cohorts$OFI)               <- "OFI"
+                  units(relevant_cohorts$ed_sbp_value)   <- "mmHg"
+                  units(relevant_cohorts$pt_age_yrs)    <-"years"
+                  
+                  relevant_cohorts$Cohort <- factor(relevant_cohorts$Cohort, levels = c( "BM", "BMTBI","TBI", "PT", "Remaining", "Overall"))
                   
               
-          
-                          units(merged_cohorts$ed_sbp_value)   <- "mmHg"
-                  units(merged_cohorts$pt_age_yrs)    <-"years"
+                  pvalue <- function(x, ...) {
+    # Construct vectors of data y, and groups (strata) g
+    y <- unlist(x)
+    g <- factor(rep(1:length(x), times=sapply(x, length)))
+    if (is.numeric(y)) {
+        # For numeric variables, perform a one way anova test
+      p <- kruskal.test(y ~ g)$p.value
+    } else {
+        # For categorical variables, perform a chi-squared test of independence
+        p <- chisq.test(table(y, g), simulate.p.value = TRUE)$p.value
+    }
+    # Format the p-value, using an HTML entity for the less-than sign.
+    # The initial empty string places the output on the line below the variable label.
+    c("", sub("<", "&lt;", format.pval(p, digits=3, eps=0.001)))
+                  }
                   
+                  
+                  
+                
+                  
+                  pt_demographics <- table1(~ OFI + pt_age_yrs + Gender + ed_gcs_sum  + ed_sbp_value + NISS + res_survival + inj_dominant | Cohort, data=relevant_cohorts, caption="\\textbf{Demographics.} Patients with missing ED GCS data were intubated in a pre-hospital setting.", overall = FALSE)
+                  
+#+ not_isolated_tbi
+#Lägg till ovan om du vill inkludera svår traumatisk hjärnskada som faktor               
+              
+ #extra.col=list("P-value"=pvalue) 
+#Lägg till ovan om du vill inkludera p-värden i den deskriptiva tabellen       
 
-                  pt_demographics <- table1(~ OFI + pt_age_yrs + Gender + ed_gcs_sum  + ed_sbp_value + NISS + res_survival | Cohort, data=merged_cohorts, caption="\\textbf{Demographics}", overall = FALSE)
-                  
-                  
-                  
-      
+         
+                    pt_demographics
+               
 
 #### INCIDENCE CALCULATIONS
+
    
                   
    fewer_variables$date <- as.Date(strptime(fewer_variables$Ankomst_te.x, format = "%Y%m%d %H:%M"))
@@ -451,11 +722,9 @@ table(merged_cohorts$ed_gcs_sum)
 
 ### INCIDENCE (3-months)
 
-cohorts <- list(geriatric_cohort = geriatric_cohort,
-                 penetrating_cohort = penetrating_cohort,
-                 blunt_multisystem_cohort = blunt_multisystem_cohort,
-                 shock_cohort = shock_cohort,
-                 severe_tbi_cohort = severe_tbi_cohort,
+cohorts <- list(BM_no_TBI_cohort = BM_no_TBI_cohort, BM_and_TBI_cohort = BM_and_TBI_cohort,
+                 isolated_severe_tbi_cohort = isolated_severe_tbi_cohort,
+                 penetrating_cohort = penetrating_cohort, remaining_cohort = remaining_cohort,
                  overall = overall)
  calculate_incidence <- function(cohort) {
      cohort$date <- as.Date(strptime(cohort$Ankomst_te.x, format = "%Y%m%d %H:%M"))
@@ -495,21 +764,23 @@ cumulative.incidence.data <- lapply(percentage.data, get_cum_inc)
 #### RENAMING VARIABLES
 
 incidence_data <- incidence.data
-incidence.data$geriatric_cohort$incidence_ger <- incidence.data$geriatric_cohort$incidence
+incidence.data$BM_and_TBI_cohort$incidence_bm_tbi <- incidence.data$BM_and_TBI_cohort$incidence
+incidence.data$BM_no_TBI_cohort$incidence_bm <- incidence.data$BM_no_TBI_cohort$incidence
+incidence.data$isolated_severe_tbi_cohort$incidence_tbi <- incidence.data$isolated_severe_tbi_cohort$incidence
 incidence.data$penetrating_cohort$incidence_pen <- incidence.data$penetrating_cohort$incidence
-incidence.data$severe_tbi_cohort$incidence_tbi <- incidence.data$severe_tbi_cohort$incidence
-incidence.data$shock_cohort$incidence_sho <- incidence.data$shock_cohort$incidence
-incidence.data$blunt_multisystem_cohort$incidence_blu <- incidence.data$blunt_multisystem_cohort$incidence
+incidence.data$remaining_cohort$incidence_rem <- incidence.data$remaining_cohort$incidence
 incidence.data$overall$incidence_all <- incidence.data$overall$incidence
 
 #making unique variable name for each cohort (there surely is a way to do this more efficiently, but right now it is not my focus
-
-cumulative.incidence.data$geriatric_cohort$cum_inc_ger <- cumulative.incidence.data$geriatric_cohort$cum_inc
+cumulative.incidence_data <- incidence.data
+cumulative.incidence.data$BM_and_TBI_cohort$cum_inc_bm_tbi <- cumulative.incidence.data$BM_and_TBI_cohort$cum_inc
+cumulative.incidence.data$BM_no_TBI_cohort$cum_inc_bm <- cumulative.incidence.data$BM_no_TBI_cohort$cum_inc
+cumulative.incidence.data$isolated_severe_tbi_cohort$cum_inc_tbi <-cumulative.incidence.data$isolated_severe_tbi_cohort$cum_inc
 cumulative.incidence.data$penetrating_cohort$cum_inc_pen <- cumulative.incidence.data$penetrating_cohort$cum_inc
-cumulative.incidence.data$severe_tbi_cohort$cum_inc_tbi <- cumulative.incidence.data$severe_tbi_cohort$cum_inc
-cumulative.incidence.data$shock_cohort$cum_inc_sho <- cumulative.incidence.data$shock_cohort$cum_inc
-cumulative.incidence.data$blunt_multisystem_cohort$cum_inc_blu <- cumulative.incidence.data$blunt_multisystem_cohort$cum_inc
+cumulative.incidence.data$remaining_cohort$cum_inc_rem <- cumulative.incidence.data$remaining_cohort$cum_inc
 cumulative.incidence.data$overall$cum_inc_all <- cumulative.incidence.data$overall$cum_inc
+
+
 
 #no2
 
@@ -530,7 +801,7 @@ incidence.data<- ddply(incidence.data,"dates",numcolwise(sum))
 #### PLOTTING INCIDENCE AND CUMULATIVE INCIDENCE
 
 #Yearly incidence as %
-plot_inc_year <- incidence.data %>% select(dates, incidence_blu, incidence_pen, incidence_tbi, incidence_sho, incidence_ger, incidence_all)
+plot_inc_year <- incidence.data %>% select(dates,incidence_bm, incidence_bm_tbi, incidence_tbi, incidence_pen, incidence_all)
 
 plot_inc_year_long <- melt(plot_inc_year, id.vars = "dates")
 #melt as to enable ggplot to work
@@ -543,7 +814,7 @@ incidence_plot <- ggplot(plot_inc_year_long,
        aes(x=dates,
            y=value,
            col = variable)) + 
-  scale_color_discrete(name = "Cohort", labels = c("Blunt multisystem", "Penetrating", "Severe TBI", "Shock","Geriatric", "Overall")) +
+  scale_color_discrete(name = "Cohort", labels = c("BM", "BMTBI", "TBI", "PT", "Overall")) +
   geom_line(size = 1.0, alpha = 1.0) +
   labs(x = "Year",
        y = "%") +
@@ -554,16 +825,17 @@ incidence_plot <- ggplot(plot_inc_year_long,
 
 
 #Cumulative incidence
-plot_cum_inc<-cumulative.incidence.data %>% select(dates, cum_inc_blu, cum_inc_pen, cum_inc_tbi, cum_inc_sho, cum_inc_ger, cum_inc_all)
+plot_cum_inc<-cumulative.incidence.data %>% select(dates, cum_inc_bm, cum_inc_bm_tbi, cum_inc_tbi, cum_inc_pen, cum_inc_all)
 
 plot_cum_inc_long <- reshape2::melt(plot_cum_inc, id.vars = "dates")
+
+
 
 cum_incidence_plot<- ggplot(plot_cum_inc_long,
        aes(x=dates,
            y=value,
            col=variable)) +
-     geom_point(size=2.0, shape = col) +
-  scale_color_discrete(name = "Cohort", labels = c("Blunt multisystem", "Penetrating", "Severe TBI", "Shock","Geriatric", "Overall")) +
+  scale_color_discrete(name = "Cohort", labels = c("BM", "BMTBI", "TBI", "PT","Overall")) +
   scale_shape_manual(name = "Cohort",
                      labels = c("Blunt multisystem", "Penetrating", "Severe TBI", "Shock","Geriatric", "Overall"),
                      values = c(0, 1, 2, 3, 4, 5, 6)) +
@@ -586,22 +858,22 @@ calculate_incidence_trends <- function(cohort) {
 incidence.trends <- lapply(incidence_data, calculate_incidence_trends)
 
 
-penetrating_incidence_trend <- incidence.trends$penetrating[c(2), ] 
-geriatric_incidence_trend <- incidence.trends$geriatric[c(2), ] 
-tbi_incidence_trend <- incidence.trends$severe_tbi[c(2), ] 
-blunt_incidence_trend <- incidence.trends$blunt[c(2), ] 
-shock_incidence_trend <- incidence.trends$shock[c(2), ] 
-overall_incidence_trend <- incidence.trends$overall[c(2), ] 
+BM_and_TBI_incidence_trend <- incidence.trends$BM_and_TBI_cohort[c(2), ] 
+BM_no_TBI_incidence_trend <- incidence.trends$BM_no_TBI_cohort[c(2), ] 
+Isolated_TBI_incidence_trend <- incidence.trends$isolated_severe_tbi_cohort[c(2), ] 
+Penetrating_incidence_trend <- incidence.trends$penetrating_cohort[c(2), ] 
+Remaining_incidence_trend <- incidence.trends$remaining_cohort[c(2), ]
+Overall_incidence_trend <- incidence.trends$overall[c(2), ] 
 
-penetrating_incidence_trend$cohort <- "Penetrating"
-geriatric_incidence_trend$cohort <-"Geriatric"
-tbi_incidence_trend$cohort <- "Severe TBI"
-blunt_incidence_trend$cohort <- "Blunt multisystem"
-shock_incidence_trend$cohort <- "Shock"
-overall_incidence_trend$cohort <- "Overall"
+BM_and_TBI_incidence_trend$cohort <- "BMTBI"
+BM_no_TBI_incidence_trend$cohort <-"BM"
+Isolated_TBI_incidence_trend$cohort <- "TBI"
+Penetrating_incidence_trend$cohort <- "PT"
+Remaining_incidence_trend$cohort <- "Remaining"
+Overall_incidence_trend$cohort <- "Overall"
 
 incidence_trend_table <- Reduce(function(x, y) merge(x, y, all=TRUE),
-                                     list(blunt_incidence_trend, penetrating_incidence_trend, tbi_incidence_trend, shock_incidence_trend, geriatric_incidence_trend, overall_incidence_trend))
+                                     list(BM_and_TBI_incidence_trend, BM_no_TBI_incidence_trend, Isolated_TBI_incidence_trend, Penetrating_incidence_trend, Remaining_incidence_trend, Overall_incidence_trend))
 
 library(dplyr)
 library(readxl)
@@ -611,34 +883,29 @@ names(incidence_trend_table) <- c('Model', 'Term', 'Estimate', 'SD_error', 'Stat
 incidence_trend_table <- incidence_trend_table[,c(7, 3, 4, 5, 6, 2, 1)]
 incidence_trend_table <- incidence_trend_table[, -c(3,4,6,7)]
 
-x <- c("Blunt multisystem", "Penetrating", "Severe TBI", "Shock", "Geriatric", "Overall")
-incidence_trend_table <- incidence_trend_table[c(6,5,1,2,4,3), ]
+incidence_trend_table <- incidence_trend_table[c(4,6,1,5,3), ]
 rownames(incidence_trend_table) <- c()
 
 
-### INCIDENCE PACKAGE PLOT 
+### MULTIPLE LOGISTIC REGRESSION
+all_cohorts <- Reduce(function(x, y) merge(x, y, all=TRUE),
+                                     list(BM_and_TBI_cohort, BM_no_TBI_cohort, isolated_severe_tbi_cohort, penetrating_cohort))
 
+all_cohorts$OFI <- as.factor(all_cohorts$OFI)
+all_cohorts$Cohort <- as.factor(all_cohorts$Cohort)
 
-incidence_package_ofi <- incidence(fewer_variables$date, interval = "6 months", groups = fewer_variables$OFI)
-#Use of incidence package to calculate incidence in the group as a whole by year (2)
+log_reg <- glm(OFI ~ Cohort, all_cohorts, family = binomial)
 
-plot(incidence_package_ofi, stack = TRUE, border = "grey")
-### TOTAL
+library(dplyr)
 
-#calculate incidence by cohort and year (2)
-cohort_incidence_package_ofi <- filter(merged_cohorts, OFI == "Yes")
-
-cohort_incidence_package_ofi$date <-as.Date(strptime(cohort_incidence_package_ofi$Ankomst_te.x, format = "%Y%m%d %H:%M"))
-#converting date
-
-#Since each case here is "OFI == Yes", incidence of dates is all we need to calculate
-
-cohort_incidence_package_ofi <-incidence(cohort_incidence_package_ofi$date, interval = "6 months", groups = cohort_incidence_package_ofi$Cohort)
-
-incidence_package_plot <- plot(cohort_incidence_package_ofi)
-### BY COHORT
-
-
+log_reg_table <- log_reg %>%
+  tbl_regression(
+    exponentiate = TRUE, 
+    pvalue_fun = ~style_pvalue(.x, digits = 2),
+  ) %>% 
+modify_footnote(c(all_stat_cols()) ~ NA) %>% 
+  bold_p(t = 0.05) %>%
+  bold_labels() 
 
 
 #### REFERENCES FOR MARKDOWN CHUNKS
@@ -647,7 +914,7 @@ cum_inc <- select(plot_cum_inc, -dates)
 cum_inc <- cum_inc %>% slice(-c(1:8))
 
 
-incidence <- select(incidence.data, incidence_ger, incidence_pen, incidence_blu, incidence_sho, incidence_tbi)
+#incidence <- select(incidence.data, incidence_bm_tbi, incidence_bm, incidence_tbi, incidence_pen)
 
 min.col <- function(m, ...) max.col(-m, ...)
 
@@ -661,220 +928,185 @@ FitFlextableToPage <- function(ft, pgwidth = 6){
 }
 
 
-max_percent_dead <- c(nrow(filter(severe_tbi_cohort, res_survival == 1))) / c(nrow(severe_tbi_cohort)) * 100
-second_max_percent_dead <- c(nrow(filter(shock_cohort, res_survival == 1))) / c(nrow(shock_cohort)) * 100
-
+max_percent_dead <- c(nrow(filter(isolated_severe_tbi_cohort, res_survival == 1))) / c(nrow(isolated_severe_tbi_cohort)) * 100
 percent_male <- c(nrow(filter(fewer_variables, Gender == "Male"))) / c(nrow(fewer_variables)) * 100
-
-# PROBLEM AREAS
-# Riktigt klumpigt kodat mot slutet av denna chunk. Katastrofkodat under denna rubrik, men får jobbet gjort.
-
- 
-Problem_area <- data.frame(table(combined.datasets$Problemomrade_.FMP))
-Problem_area <- Problem_area[-c(4, 13, 14, 15), ]
- Problem_area$problem_area <- c("Routine", "Documentation", "documentation", "Processing", "Communication", "Nursing and physician competency","Time to computed tomography", "Time to surgery", "Logistics and technique", "Injury identification", "Neurosurgical intervention", "Resource management", "Tertiary survey", "Trauma criteria and overall management", "Emergency department triage", "Hospital care level")
-Problem_area <- Problem_area[, -c(1)]
-Problem_area$percentage <- round(Problem_area$Freq/sum(Problem_area$Freq)*100, digits = 2)
-Problem_area <- Problem_area %>% select(problem_area, Freq, percentage)
-
-Problem_area[nrow(Problem_area) + 1,] <- c("Documentation", 4, 1.25)
-Problem_area <- Problem_area[-c(2,3), ]
-Problem_area$percentage <- as.numeric(Problem_area$percentage)
-
-Problem_area <- arrange(Problem_area, desc(percentage))
-
-problem_area_barplot <- ggplot(data=Problem_area, aes(x=reorder(problem_area, -percentage), y=percentage)) +
-  geom_bar(stat="identity", fill= "skyblue"  ) +
-  theme_tufte() +
-   guides(x = guide_axis(angle = 90)) +
-  labs(x = "", y = "%") +
-  ylim(0, 25) 
-
-#Blunt multisystem
-
-Blunt_pa <- data.frame(table(blunt_multisystem_cohort$Problemomrade_.FMP))
-Blunt_pa <- Blunt_pa[-c(7, 8, 9), ]
-Blunt_pa$percentage <- round(Blunt_pa$Freq/sum(Blunt_pa$Freq)*100, digits = 2)
-Blunt_pa <- Blunt_pa %>% select(Var1, Freq, percentage)
-Blunt_pa <- arrange(Blunt_pa, desc(percentage))
-
-Blunt_pa$Var1 <- c("Resource management", "Emergency department triage", "Time to surgery", "Hospital care level", "Injury identification", "Trauma criteria and overall management","Processing", "Time to computed tomography", "Communication", "Logistics and technique")
-
-Blunt_pa_barplot <- ggplot(data=Blunt_pa, aes(x=reorder(Var1, -percentage), y=percentage)) +
-  geom_bar(stat="identity", fill= "skyblue"  ) +
-  theme_tufte() +
-   guides(x = guide_axis(angle = 90)) +
-  labs(x = "", y = "%") +
-  ylim(0, 25) 
-Blunt_pa_barplot
 
 ```
 
 
 # Background
 
-Trauma, defined as physical injury and the body’s associated response[@Gerdin2015], is the leading cause of death in patients aged 45 or younger[@GlobalStats]. For every death by trauma, three patients are rendered permanently disabled[@Trauma], which significantly amplifies the social and economic impacts of the disease as well as the importance of quality trauma care. The two major mechanisms of injury are blunt trauma, mainly due to falls, traffic accidents and assaults, and penetrating trauma, mainly due to stabbing or use of firearms[@Trauma].
+Trauma, defined as physical injury and the body’s associated response[@Gerdin2015], is the leading cause of death in patients aged 45 and younger[@GlobalStats]. For every trauma death, three persons are rendered permanently disabled[@Trauma], which significantly amplifies the social and economic impact of the disease as well as the importance of quality trauma care. 
 
-In striving towards a high performing trauma care of uniform quality, most countries have structured trauma care similarly, adhering to certain guiding principles. Generally referred to as 'trauma systems', the structure typically involves: (i) centralization of trauma care to specialized trauma centres, (ii) benchmarking of outcomes through trauma registries and (iii) continuous retrospective assessment of care provided through multidisciplinary mortality and morbidity review board conferences. Following the widespread introduction of trauma systems, the prevalence of extensive institutional, regional and national trauma registries and review board records have increased greatly, as have the number of investigatory studies that constitute trauma epidemiology.
+Trauma care throughout large parts of the world has been subject to extensive quality improvement initiatives such as the American College of Surgeons (ACS) Trauma Quality Improvement Program (TQIP)[@TQIP], the Michigan Trauma Quality Improvement Program (MTQIP) [@MQIP] and the Australian Trauma Quality Improvement Program (Aus-TQIP)[@ANTRC]. Pivotal to these efforts are benchmarking of outcomes through trauma registries and continuous retrospective assessment of care provided through multidisciplinary morbidity and mortality review conferences[@MQIP;@TQIP; @ANTRC].
 
-Historically within trauma epidemiology, much emphasis has been placed on benchmarking rates of mortality and morbidity and rates of death preventability [ref]. Continuous benchmarks of mortality and morbidity rates are essential to a well functioning quality improvement process. Rates of death preventability, however, constitutes a poor measure of care quality due to intrinsic problems in its review process, along with its poor external validity [ref:s]. A sound measure of care quality is nonetheless needed, as it allows for comparisons of care to be made, not only across institutions, but within institutions across the spectrum of disease.
+There is a lack of well performing quality indicators within trauma epidemiology[@QI]. The most commonly used indicator, trauma related preventable deaths (TRPD)[@Preventable_1], has been under considerable scrutiny due to its poor inter-rater reliability[@InterRR] and external validity[@Preventable_1]. The principal cause of the divergence is not disagreement of the inappropriateness of care, but of its relation to patient death[@InterRR]. Rates of opportunities for improvement (OFI) in care provided are considered independent of attributions of causality and constitutes a more accurate measure for care quality[@Preventable_6].
 
-In recent years, the term 'opportunities for improvement' in care provided (OFI) have emerged in the trauma literature, representing a coarse dichotomous proxy measure for care quality. OFI is defined as patient care disharmonious with the current best practice guidelines, and relies on a consensus decision by an expert review board. Rates of OFI constitutes a more accurate measure of care quality than rates of death preventability. Further, unequal distributions of OFI within different parts of the trauma population can help spotlight negative trends rectifiable by way of corrective intervention. Hitherto, no study has set out to estimate rates of OFI within the general Scandinavian trauma population.
-
-## Aim
-The aim of this study is to measure the incidence of OFI in care provided across different cohorts at KUH trauma centre, identify problem areas and estimate temporal incidence trends.
+Several studies have recorded rates of OFI. One study of deceased trauma patients in Utah recorded OFI in 76% of cases[@Preventable_6], while an English study of trauma patients deceased due to hemorrhage recorded a 66% rate of OFI[@HemorrhageOFI] and a Rwandan study of patients reviewed at a surgical morbidity and mortality conference recorded a 48% rate of OFI[@RwandaOFI]. Hitherto, no studies have looked at the distribution of OFI across subsets of the trauma population or how that distribution changes temporally. Unequal distributions of OFI across the traumatic spectrum of injury could spotlight negative trends that may be rectified by corrective intervention. The aim of this study is to measure and compare cumulative and semiannual incidence of OFI in care provided across subsets of the Scandinavian trauma population and predict temporal incidence trends.
 
 # Methods
-
 ## Study design
-A retrospective cohort study was conducted, using data from the Swedish Trauma Registry (SweTrau) and the Karolinska University Hospital Trauma Care Quality Database (KUH TCQD). Grouping was performed adhering to cohort definitions in a complete case analysis using the programming software R. Data handling and statistical analyses were initially done using a simulated set of data to minimize bias. Semiannual and cumulative incidence of OFI was measured within cohorts and specific problem areas were identified. A trend analysis was then conducted by fitting the incidence data into a linear model with a time series component. All stages of exclusion were documented in a flowchart. 
+We analysed data from the Swedish Trauma Registry (SweTrau) and the Karolinska University Hospital (KUH) Trauma Care Quality Database (TCQD). We grouped patients to four non-overlapping trauma cohorts: patients with severe blunt multisystem injuries and a severe traumatic brain injury (BMTBI); patients with severe blunt multisystem injuries without a severe traumatic brain injury (BM); patients with an isolated severe traumatic brain injury (TBI) and patients with severe penetrating truncal injuries (PT). Thereafter we measured and compared semiannual and cumulative incidence of OFI, outlined the incidence rates temporally and performed a trend analysis.
 
 ## Setting
-KUH trauma centre in Stockholm, Sweden is an American College of Surgeons trauma level-1 centre, which manages 1300 trauma patients each year. Trauma patients are triaged in a pre-hospital setting as a priority one or two by assessing vital physiological parameters, anatomical criteria, and mechanism of injury. The pre-hospital system includes a helicopter emergency medical service and three physician staffed ambulances. The in-hospital system includes a multidisciplinary trauma team comprised of a surgeon, an anesthesiologist, an orthopedic surgeon, a radiologist, a surgical nurse, an assistant surgical nurse, a nurse anesthetist, an emergency medicine nurse, an emergency medicine assistant nurse and a radiology nurse. Consultations with associated specialties are available around the clock. The team has immediate access to radiology, surgery, and intensive care.
+KUH in Stockholm, Sweden is the equivalent of an American College of Surgeons trauma level-1 centre[@Granstrom] and manages 1300 trauma patients each year. Trauma patients are triaged in a pre-hospital setting as a priority one or two by assessing vital physiological parameters, anatomical criteria, and mechanism of injury. The pre-hospital system includes a helicopter emergency medical service and three physician staffed ambulances. The in-hospital system includes a multidisciplinary trauma team comprised of a surgeon, an anesthesiologist, an orthopedic surgeon, a radiologist, a surgical nurse, an assistant surgical nurse, a nurse anesthetist, an emergency medicine nurse, an emergency medicine assistant nurse and a radiology nurse. Consultations with associated specialties are available around the clock. The team has immediate access to radiology, surgery, and intensive care.
 
-All patients admitted to KUH with trauma team activation, as well as patients admitted without trauma team activation, but retrospectively found to have a new injury severity score (NISS) of greater than 15 are included in the Swedish national trauma registry (SweTrau). Excluded are patients who trigger trauma team activation despite not having suffered a traumatic injury and patients whose solitary injury is chronic subdural hematoma. KUH organizes monthly multidisciplinary trauma mortality and morbidity review board conferences, selecting patients from SweTrau using audit filters and extensive nursing review (see figure \@ref(fig:swetrau-flowchart)). The audit filters used at KUH are: systolic blood pressure less than 90; Glasgow coma scale (GCS) less than 9 and not intubated; injury severity score (ISS) greater than 15 and not admitted to the intensive care unit; time to acute intervention greater than 60 minutes; time to computed tomography greater than 30 minutes; and death within 30 days following trauma. The review board is comprised of representatives from all disciplines commonly involved in trauma care - surgery, vascular surgery, neurosurgery, orthopedics, anesthesia and intensive care, nursing, and radiology. Their purpose is to reach a consensus regarding the presence of OFI and implement appropriate corrective actions. The nature of that which can be improved is then registered under the variable name "problem area" in the Karolinska University Hospital's Trauma Care Quality Database (KUH TCQD).
+All patients admitted to KUH with trauma team activation, as well as patients admitted without trauma team activation, but retrospectively found to have a new injury severity score (NISS) of greater than 15 are included in SweTrau and the TCQD. Patients who trigger trauma team activation despite not having suffered trauma and patients whose only injury is chronic subdural hematoma are not included[@SweTrau]. KUH organizes monthly multidisciplinary morbidity and mortality review conferences, selecting patients from SweTrau and the TCQD (see Figure \@ref(fig:swetrau-flowchart)). Each record is screened by a nurse and passed through audit filters. Audit filters used at KUH are: systolic blood pressure less than 90; Glasgow coma scale (GCS) less than 9 and not intubated; injury severity score (ISS) greater than 15 and not admitted to the intensive care unit; time to acute intervention greater than 60 minutes; time to computed tomography greater than 30 minutes; and death within 30 days following trauma.
 
-*Fix flowchart*
+Cases flagged by audit filters or by concern from the reviewing nurse moves on to a secondary round of reviews conducted by two specialized nurses. If the secondary review fails to identify a valid reason for the audit filter trigger or if there is remaining concern, the case is escalated to a morbidity and mortality review conference. Patients deceased within 30 days following major trauma are selected for review regardless of the validity of their audit filter trigger. The review boards are comprised of representatives from all disciplines commonly involved in trauma care - surgery, vascular surgery, neurosurgery, orthopedics, anesthesia and intensive care, nursing, and radiology. Their purpose is to reach a consensus regarding the presence of OFI and implement appropriate corrective actions. For each case, the primary improvement area or lack thereof, is documented in the TCQD.
 
-```{r swetrau-flowchart, fig.cap="\\textbf{SweTrau to OFI.} \\emph{SweTrau: Swedish Trauma Registry, OFI: opportunities for improvement, KUH TCQD: Karolinska University Hospital's trauma care quality database}", out.width="100%", fig.align="center", echo=FALSE, message=FALSE, warning=FALSE}
-knitr::include_graphics("swetrau_flowchart.pdf")
+```{r swetrau-flowchart, fig.cap="\\textbf{From TCQD to OFI.} Outlined is the selection process for trauma morbidity and mortality review conferences at Karolinska University Hospital between 2017 and 2021. For every case a consensus about OFI is reached. \\emph{Abbreviations: TCQD = trauma care quality database OFI = opportunities for improvement}", out.width ="100%", fig.align="center", echo=FALSE, message=FALSE, warning=FALSE}
+knitr::include_graphics("ofi-flowchart.pdf")
 ```
-
 
 ## Participants
 
 ### Study population
-All adult trauma patients (defined as 15 years or older) in the KUH TCQD, with complete OFI data and a hospital admission date between 2017 and 2022 are included. 
+We included all adult trauma patients (defined as 15 years or older) in the TCQD with a hospital admission date between 2017 and 2022. 2017 was selected as the lower threshold because the review process was formalized that year. Cohort definitions were extracted from Horner et al.[@QualityBenchmarking] and then modified to reflect what we considered to be clinically important subsets of the trauma population.
+ 
+Table: (\#tab:cohort-table) **Cohort definitions.** Severity of injury is derived from the Abbreviated Injury Scale (AIS). Injuries with an associated AIS severity score of 3 or greater are considered severe. 
 
-### Cohorts
-Grouping was conducted pertaining to directives from the American College of Surgeons Trauma Quality Improvement Program, using the Abbreviated Injury Scale (AIS) grading system, which forms a number of seven digits indicating (i) region of injury, (ii) type of anatomical structure, (iii) specific anatomical structure, (iv) level of injury and (v) severity of injury[@TQIP; @AIS]. Patients were grouped by principal mechanism of injury (blunt, penetrating), post-injury condition (shock, severe traumatic brain injury) and age. Certain ACS TQIP cohorts are excluded as a result of local directives, limitations to the data contained in SweTrau and the time and resources dedicated to this study. Presented below are inclusion and exclusion criteria by cohort.
-
-**Cohort inclusion and exclusion criteria**
-
-Cohort  | Inclusion criteria  | Exclusion criteria
+**Cohort**  | **Inclusion criteria**  | **Exclusion criteria**
 ------------- | ------------- | ------------------
-Severe blunt multisystem injuries  | Blunt injuries with an AIS severity of 3 or greater in at least 2 of the following body regions: head, face, neck, thorax, abdomen, spine, upper, or lower extremity
-Severe penetrating injuries | Penetrating truncal injury with an AIS severity of 3 or greater in the regions of the neck, chest or abdomen
-Severe TBI    | Head injury with an AIS severity of 3 or greater and an ED GCS of less than 9  | Injuries in separate AIS body region with an AIS severity of 3 or greater
-Shock       | ED systolic blood pressure less than 90 mm Hg
-Geriatric    | Aged 65 years or greater
-*AIS: Abbreviated Injury Scale, TBI: traumatic brain injury, ED: emergency department, GCS: Glasgow coma scale, mm Hg: millimeter of mercury*
+BM| Severe blunt injuries in at least 2 of the following body regions: head, face, neck, thorax, abdomen, spine, upper, or lower extremity. | Severe head injury in addition to an ED GCS of less than 9.
+BMTBI | Severe blunt injuries in at least 2 of the following body regions: head, face, neck, thorax, abdomen, spine, upper, or lower extremity. At least one of the injuries must be a severe head injury. | ED GCS greater than 9.
+TBI | Severe head injury and an ED GCS of less than 9. | Severe injury in separate AIS body region.
+PT | Severe penetrating injury in one of the following regions: neck, chest or abdomen.
+
+*Abbreviations: BMTBI = severe blunt multisystem injuries and a severe traumatic brain injury, BM = severe blunt multisystem injuries without a severe traumatic brain injury, TBI = isolated severe traumatic brain injury, PT = severe penetrating truncal injury, ED = emergency department, GCS = Glasgow coma scale, mm Hg = millimeter of mercury*
+
 
 ## Variables
-Initial cohort data is presented in a descriptive table (Table 2). Continuous variables are presented as mean, median and interquartile range. Categorical variables are presented as percentages.
 
-### Outcome variable
-The categorical variable OFI was used as outcome measure, derived from the "problem area" variable of the KUH TCQD by way of dichotomization. It was coded "true" for all patient cases with a positive problem area and "false" for all patients where none applied. All patients not included at a mortality and morbidity conference was systematically coded as "false".
+### Outcome measure
+We used the variable OFI, derived from the TCQD, as our outcome measure. OFI is defined dichotomously, with the levels “Yes" (One or more OFI identified) and “No" (No OFI identified). 
+
+### Descriptive data
+We included all grouping variables in the table of descriptive statistics (Table \@ref(tab:descriptive-table)) with the exception of AIS score. Further, we added NISS, sex and 30 day mortality. Continuous variables are presented as mean, median and minimum and maximum range. Categorical variables are presented as percentages.
 
 ## Statistical methods
-Data handling and statistical analyses was conducted in the statistical programming software R. Data from SweTrau and KUH TCQD were extracted, matched by patient id and merged. Non-essential columns of variables were removed. Non-informational values were systematically changed to informational ones or removed as per instruction in the SweTrau Manual[@SweTrau]. Patients were grouped and excluded according to the cohort definitions, inclusion- and exclusion criteria listed above. Once grouping and exclusion was done to satisfaction, the semiannual and cumulative incidence of OFI was calculated for each cohort and for the study population in its entirety. A linear regression model with a time series component was then applied to the incidence data to estimate temporal incidence trends. Statistical significance was defined as P<0,05 with a 95% confidence interval.
+We used R for data management and statistical analyses[@R]. First, we extracted data from SweTrau and KUH TCQD, and matched observations between databases using patient id and hospital admission date. Thereafter we assigned patients to trauma cohorts using the definitions listed above and calculated the semiannual and cumulative incidence of OFI for each cohort and for the total study sample. Further, we performed a logistic regression analysis comparing cohort belonging and OFI. Lastly, the R package Fable TSLM[@R], a linear model with a time series component, was applied to the incidence data to predict temporal incidence trends. Statistical significance was defined as P < 0,05 with a 95% confidence interval.
 
-### Bias
-The method and algorithm for data analysis were developed on a step-by-step basis using simulated data. It was rigorously tested throughout its development process, until the results using the simulated data set was satisfactory. The algorithm was then reviewed by a trained programmer and statistician. Following approval, the algorithm was not changed, and the data as a result not skewed by the bias of the developer. Selection bias, caused by the inclusion criteria for the KUH TCQD and SweTrau, is possible.
+## Bias
+We addressed potential bias in data handling, grouping and analysis by developing the associated methods on a simulated set of data. The code was rigorously tested throughout its development process and not changed following the transition to real data.
 
-### Ethical review numbers: 
+## Ethical review numbers: 
 2021-02541, 2021-03531
 
 # Results
 ## Participants 
-Over the pre-specified study period, `r nrow(datasets$problem)` patients were included in the the KUH TCQD. 5951 patients were excluded as the selection process and the constitution of the review board were different prior to 2017. `r nrow(fewer_variables)` (`r round(nrow(fewer_variables)/nrow(datasets$problem)*100, digits=1)`%) patients were aged 15 or greater and had sufficient data regarding OFI (see figure \@ref(fig:exclusion-flowchart)). The blunt multisystem cohort was comprised of `r nrow(blunt_multisystem_cohort)` patients; penetrating of `r nrow(penetrating_cohort)` patients; severe TBI of `r nrow(severe_tbi_cohort)` patients; shock of `r  nrow(shock_cohort)` patients and geriatric of `r nrow(geriatric_cohort)` patients. Five categories of data were necessary for grouping: age, emergency department gcs, emergency department systolic blood pressure, AIS score and dominant injury type (blunt or penetrating). 932 patients lacked data about age, `r Exclusion_table$Missing[3]` patients lacked data about emergency department gcs and `r Exclusion_table$Missing[4]` patients lacked data about emergency department blood pressure. No patients lacked data about dominant injury type or AIS score.
+Figure \@ref(fig:exclusion-flowchart) showcases the stages of exclusion. The TCQD contained 6148 patients, of which `r nrow(fewer_variables)`(85%) were eligible for grouping. BMTBI contained `r nrow(BM_and_TBI_cohort)` patients; BM contained `r nrow(BM_no_TBI_cohort)` patients; TBI contained `r nrow(isolated_severe_tbi_cohort)` patients and PT contained `r nrow(penetrating_cohort)` patients. 932 patients lacked data about age, `r Missing[3]` patients lacked data about emergency department GCS and `r Missing[4]` patients lacked data about emergency department blood pressure. No patients lacked data about dominant injury type or AIS score.
 
-```{r exclusion-flowchart, echo=FALSE, fig.cap="\\textbf{Exclusion flowchart.} Excluded are all patients patients treated prior to 2017, as they systematically lack data about OFI. \\emph{Abbreviations: TBI: traumatic brain injury, ED GCS: emergency department Glasgow coma scale, ED SBP: emergency department systolic blood pressure.}", out.width="100%", fig.align="center"}
+```{r exclusion-flowchart, echo=FALSE, fig.cap="\\textbf{Stages of exclusion.} \\emph{Abbreviations: BMTBI = severe blunt multisystem injuries and a severe traumatic brain injury, BM = severe blunt multisystem injuries without a severe traumatic brain injury, TBI = isolated severe traumatic brain injury, PT = severe penetrating truncal injury.}", out.width="100%", fig.align="center"}
 knitr::include_graphics("exclusion_flowchart.pdf")
 ```
 
  
 ## Descriptive data
-Table \@ref(tab:descriptive-table) presents patient demographics in the trauma cohorts. The `r colnames(cum_inc)[apply(cum_inc,1,which.max)]` cohort had the highest percentage of OFI with `r round(max(cum_inc), digits=1)`% and the`r colnames(cum_inc)[apply(cum_inc,1,which.min)]` cohort the lowest with `r round(min(cum_inc), digits=1)`%. The severe TBI cohort had the highest 30-day-mortality with `r round(max_percent_dead, digits=1)`%, followed by the shock cohort with `r round(second_max_percent_dead, digits=1)`%. The study population is male-dominated with `r round(percent_male, digits=1)`% men. The two cohorts with the highest average NISS was blunt multisystem (35,3) and severe TBI (34,3).
+Table \@ref(tab:descriptive-table) presents patient demographics in the trauma cohorts. The cohort with the lowest cumulative incidence of OFI was PT with 6.0%. Highest was BM with 18.9%. The sample population in its entirety had cumulative incidence of 5.8%. TBI had the highest 30-day-mortality with 36.5%. The study population is male-dominated with `r round(percent_male, digits=1)`% men. BMTBI had the highest NISS with 44.3.
 
 ```{r descriptive-table, echo=FALSE, warning=FALSE, message=FALSE, include=T}
 options(kableExtra.auto_format = FALSE)
 library(kableExtra)
-pt_demographics <- table1(~ OFI + pt_age_yrs + Gender + ed_gcs_sum  + ed_sbp_value + NISS + res_survival | Cohort, data=merged_cohorts, caption="\\textbf{Cohort demographics}", overall = FALSE)
 
 t1kable(pt_demographics) %>% 
   kable_styling(latex_options = "HOLD_position", full_width = F, position = "center") %>%
   row_spec(0, bold= TRUE) %>%
   kable_styling(latex_options = "scale_down")
+
 ```
 
 
-*Abbreviations: SD: standard deviation, ED SBP: emergency department systolic blood pressure, ED GCS: emergency department Glasgow coma scale sum, NISS: new injury severity score, Survival: survival status 30 days post emergency department admission.*
+*Abbreviations: BMTBI = severe blunt multisystem injuries and a severe traumatic brain injury, BM = severe blunt multisystem injuries without a severe traumatic brain injury, TBI = isolated severe traumatic brain injury, PT = severe penetrating truncal injury, SD = standard deviation, ED SBP = emergency department systolic blood pressure, ED GCS = emergency department Glasgow coma scale sum, NISS = new injury severity score, Survival = survival status 30 days following emergency department admission.*
 
 
+## Logistic regression
+Table \@ref(tab:log-reg-table) outlines the results of a logistic regression analysis comparing cohort belonging and odds of OFI. There was markedly lower odds of experiencing OFI in PT compared to BM (OR = 0.27, p<0.01). Patients in BMTBI and TBI were also less likely to experience OFI than BM (OR = 0.42, p = 0.074 and OR = 0.67, p = 0.22 respectively), but did not meet our criteria for statistical significance. 
 
-## Incidence and problem areas
-In the study population, the overall semiannual incidence of OFI ranged from  `r round(min(incidence.data$incidence_all), digits=2)`% to   `r round(max(incidence.data$incidence_all), digits=2)`% (see figure \@ref(fig:incidence-graph)). The highest recorded total semiannual incidence was `r round(max(incidence), digits=2)`% in the severe TBI cohort. During the second half of 2017 and the first half of 2018, total overall semiannual incidence is down. The cumulative incidence rate varied across cohorts, as well as temporally within cohorts (see figure \@ref(fig:cumulative-incidence-graph)). The cohort with the largest cumulative incidence was `r colnames(cum_inc)[apply(cum_inc,1,which.max)]` (`r round(max(cum_inc), digits=2)`%) and the cohort with the lowest was penetrating (`r round(min(cum_inc), digits=2)`%). The cumulative incidence in the overall trauma population was `r round(max(cum_inc$cum_inc_all), digits=2)`%. In the overall trauma population, the four most common problem areas was: resource management (19,8% of total OFI), emergency department triage (16,9%), time to surgery (15%) and injury identification (14,7%), see figure \@ref(fig:problem-area-barplot). 
+```{r log-reg-table, echo=FALSE, warning=FALSE, message = FALSE, include=T}
+library(flextable)
+library(dplyr)
+## "Table 3:" can probably be made bold by "compose" in order to make the tables homogenous. Figure out a way of removing "Cohort" and citation notes on OR and CI: "1". 
 
-```{r incidence-graph, fig.cap="\\textbf{Semiannual incidence of OFI.} Percentage of cases reviewed with OFI, measured with a six month interval (2017-2021). \\emph{Abbreviations: OFI: opportunities for improvement, TBI: traumatic brain injury.}", latex_options = "HOLD_position", echo=FALSE, warning=FALSE, out.width="85%", fig.align="center"}
+
+set_flextable_defaults(fonts_ignore=TRUE)
+log_reg_table %>%
+  as_flex_table() %>%
+  set_caption(caption = "Logistic regression. Association between cohort belonging and OFI.", style = "Table Caption") %>%
+ delete_part(part = "footer") %>%
+  theme_booktabs() %>%
+  bold(part = "header")
+```
+*Abbreviations: BMTBI = severe blunt multisystem injuries and severe traumatic brain injury, BM = severe blunt multisystem injuries without severe traumatic brain injury, TBI = isolated severe traumatic brain injury, PT = severe penetrating truncal injury, Remaining = patients part of the initial sample, but not included in a cohort, CI = Confidence Interval, OR = Odds Ratio*
+
+
+## Incidence 
+Semiannual incidence of OFI for the study sample ranged from  `r round(min(incidence.data$incidence_all), digits=2)`% to   `r round(max(incidence.data$incidence_all), digits=2)`% (Figure \@ref(fig:incidence-graph)). TBI had the highest semiannual incidence with 35.7. For the duration of the study, overall semiannual incidence appears to be trending downwards, with a partial retracement in 2019. Cumulative incidence of OFI was unequally distributed across cohorts and its rate of increase varied significantly temporally within cohorts (Figure \@ref(fig:cumulative-incidence-graph)). 
+
+```{r incidence-graph, fig.cap="\\textbf{Semiannual incidence of OFI.} Percentage of cases reviewed with OFI, measured with a six month interval (2017-2021). \\emph{Abbreviations: BMTBI = severe blunt multisystem injuries and a severe traumatic brain injury, BM = severe blunt multisystem injuries without a severe traumatic brain injury, TBI = isolated severe traumatic brain injury, PT = severe penetrating truncal injury, OFI = opportunities for improvement}", latex_options = "HOLD_position", echo=FALSE, warning=FALSE, out.width="85%", fig.align="center"}
 library(ggplot2)
 incidence_plot
 ```
 
 
 
-```{r cumulative-incidence-graph, fig.cap="\\textbf{Cumulative incidence of OFI.} Cumulative percentage of total cohort participants with OFI (2017-2021). \\emph{Abbreviations: OFI: opportunities for improvement, TBI: traumatic brain injury.}", latex_options = "HOLD_position", echo=FALSE, warning=FALSE, out.width="85%", fig.align="center"}
+```{r cumulative-incidence-graph, fig.cap="\\textbf{Cumulative incidence of OFI.} Cumulative percentage of total cohort participants with OFI (2017-2021). \\emph{Abbreviations: BMTBI = severe blunt multisystem injuries and a severe traumatic brain injury, BM = severe blunt multisystem injuries without a severe traumatic brain injury, TBI = isolated severe traumatic brain injury, PT = severe penetrating truncal injury, OFI = opportunities for improvement}", latex_options = "HOLD_position", echo=FALSE, warning=FALSE, out.width="85%", fig.align="center"}
 
 library(ggplot2)
-#cum_incidence_plot 
+cum_incidence_plot 
 
 ```
 
 
-```{r problem-area-barplot, fig.cap="\\textbf{Identification of specific problem areas.} Percentage of total OFI in the overall trauma population attributable to specific problem areas.", echo=FALSE, warning=FALSE, message=FALSE, out.width="85%"}
-library(ggplot2)
-library(ggthemes)
-problem_area_barplot
+```{r problem-area-barplot, fig.cap="\\textbf{Identification of specific improvement areas.} Percentage of total OFI in the overall trauma population attributable to specific improvement areas.", echo=FALSE, warning=FALSE, message=FALSE, out.width="85%"}
+#library(ggplot2)
+#library(ggthemes)
+#problem_area_barplot
 ```
 
 
 ## Trends
-Table \@ref(tab:trend-table) presents the outcome of a fitted linear model with a time series component. All cohorts had a negative incidence trend estimate. With statistical significance defined as p<0,05, no trends were statistically significant. The steepest trend estimate was that of Severe TBI with -0.017 (CI y-y, p=0,089). Closest to having a statistically significant trend was the shock cohort with p=0,0517.
-
+Table \@ref(tab:trend-table) presents the outcome of a fitted linear model with a time series component. BMTBI had a positive trend estimate. The overall study sample, and the remaining cohorts had negative trend estimates. No trends were statistically significant. TBI had the steepest trend estimate and the lowest p-value (-0.0175, p = 0.089).
 
 ```{r trend-table, echo=FALSE, warning=FALSE, message = FALSE, include=T}
 options(kableExtra.auto_format = FALSE)
 library(kableExtra)
 
+#Having problems choosing width. Padding argument doesn't seem to work in PDF, leaving me to choose either full_width=T or have a small table with no padding.
+
+incidence_trend_table$Estimate <- round(incidence_trend_table$Estimate, digits = 4)
+incidence_trend_table$P_value <- round(incidence_trend_table$P_value, digits = 4)
+
 incidence_trend_table %>% 
-  kbl(caption = "\\textbf{Temporal incidence trends.} The trend estimate represents the linear models expected decline in OFI incidence every 6 months.", col.names = c("Cohort","Estimate", "P value")) %>%
-  kable_classic_2(full_width = F, html_font = "Cambria") %>%
+  kbl(caption = "\\textbf{Temporal incidence trends.} The trend estimate represents the linear model's expected decline in incidence of OFI every 6 months.", col.names = c("Cohort","Estimate", "P value")) %>%
+  kable_classic(full_width = F, html_font = "Cambria") %>%
   row_spec(0, bold= TRUE) %>%
   kable_styling(latex_options = "hold_position", position = "center")
+
+
 ```
 
-*Abbreviations: TBI: traumatic brain injury, CI: confidence interval.*
+*Abbreviations: BMTBI = severe blunt multisystem injuries and a severe traumatic brain injury, BM = severe blunt multisystem injuries without a severe traumatic brain injury, TBI = isolated severe traumatic brain injury, PT = severe penetrating truncal injury, CI = confidence interval.*
 
 # Discussion
-# Key results
-The principal aim of this study was to measure the semiannual and cumulative incidence of OFI in the trauma cohorts blunt multisystem, penetrating, severe TBI, shock and geriatric at KUH trauma centre to obtain rough estimates of care quality throughout the trauma population, independent of mortality or morbidity rates. There was sizable variance in cumulative incidence of OFI across the trauma cohorts. The cumulative incidence of OFI in the blunt multisystem cohort (17,7%), stands in stark contrast to that of the penetrating cohort (6%) or the general trauma population (5,8%). There were large shifts in amplitude in semiannual incidence of OFI. The secondary aims were to identify problem areas and estimate temporal incidence trends. The four most common problem areas in the overall cohort pertained to resource management, emergency department triage, time to surgery and injury identification. The general trauma population and all five cohorts had negative temporal incidence trend estimates, suggesting of an overall downtrend. No trend were statistically significant.
+In this retrospective cohort study of severely injured adult trauma patients, we outlined and compared incidence of OFI across clinically relevant subsets of the trauma population and predicted temporal incidence trends. We found considerable variance in cumulative incidence of OFI across the trauma cohorts. The cumulative incidence of OFI of BM (17.7%) were markedly higher than that of the overall study sample (5.8%). The trend estimate of the overall study sample was negative, but did not meet our criteria for statistical significance.
 
-# Interpretation
-The considerable divergence in cumulative incidence of OFI between cohorts is suggestive of care inequality across the traumatic spectrum of disease and warrants an explanation. The relative risk of experiencing OFI is 3.05 for the blunt multisystem cohort compared to the general trauma population and 2.95 compared to the penetrating cohort. Intuitively, one might ascribe the divergence in cumulative incidence of OFI to the difference in difficulty pertaining to diagnosing and management. In treating blunt multisystem trauma: deciphering patient presentation may be harder; the probability of missing injuries greater; and overall management generally more complex than e.g. penetrating trauma, which tend to leave little for the imagination. 
+The use of audit filters in the selection process favors patients with severe outcomes. Additionally, severity of injury correlates with complexity of management[@Complexity] and risk for errors in care. Injury severity should therefore be positively correlated with OFI and cohorts with a higher cumulative incidence of OFI would be expected to have a higher median NISS. Our results are not indicative of such a correlation. BMTBI had the highest NISS by far (median = 43), yet it had a cumulative incidence of less than half of that of BM (median NISS = 34) (see Table \@ref(tab:descriptive-table)). We further hypothesized that adding a new type of injury to an already injured patient would increase overall complexity of management and probability of OFI. We should then expect to see a higher cumulative incidence of OFI in BMTBI than in BM and TBI. Contrary to that assumption, BM had a considerably higher, and TBI a moderately higher cumulative incidence of OFI than BMTBI. An attempt at an interpretation would be to say that patients in BMTBI, as a consequence of the severity of their injuries, died before errors could be made. In contrast to TBI with a mortality ratio of 36,5%, however, the mortality ratio of BMTBI (25%) seems rather modest. Hence, we believe this to be an aberration attributable to a limited patient sample.
 
-OFI is however defined as care disharmonious with best practice guidelines, with an implicit assumption that it is possible to follow said guidelines in every case to perfection. Granting that physicians sometimes must resort to professional judgement and that a significant portion of OFI recorded is attributable to hospital level factors, straying from guidelines in as much as 17,7 percent of patient cases suggests that KUH has some way to go in terms of quality improvement for patient with blunt trauma. Few results are unambiguous and these are no exception: in cumulative incidence of OFI, there is no single outlier, but rather a continuum and and potential future initiatives should reflect that and be taken proportionally. Quality improvement should also strike a balance between targeting trauma cohorts with a high cumulative incidence of OFI and trauma cohorts where care disharmonious to best practice guidelines pose the greatest risk for serious disability or death.
+To our knowledge, this is the first study to investigate the distribution of OFI for different subsets of the trauma population. As a result, several of the findings presented in this paper are difficult to compare. The cumulative incidence of OFI for the total study sample was 5.8%. That is much lower than what has been recorded in previous studies[@Preventable_6; @HemorrhageOFI; @RwandaOFI]. Those studies have however differed much methodologically, either by choice of study population or by maturity of trauma institution. A study with a study population more similar to ours is a study by Ghorbani et al.[@Ghorbani2018], who looked at TRPD and preventable errors in deceased trauma patients treated at KUH between 2012 and 2016. They recorded preventable errors, which can be considered comparable to OFI, in 21% of deceased patients. That is much higher than what we recorded in our overall sample, but hard to compare as we did not include deceased trauma patients as a cohort.
 
-A study by Ghorbani et al set out to (i) estimate rates of preventable errors in care and preventable deaths and (ii) explore the use of two risk scores (TRISS, NORMIT) for predicting preventable deaths at KUH between 2012 and 2016 [28]. Their estimate for preventable errors, which can be used synonymously as OFI, is 20%. The greatest methodological difference between the studies lies in their choice of study population: theirs is comprised solely of patients deceased within 30 days following trauma. A considerably higher incidence compared to that of the general trauma population in our study (5,8%) is therefore to be expected: patients deceased due to trauma were typically more severely injured and in need of faster administration of more complex management. Identical, or close to identical results would have been surprising, a divergence of results is not.
+## Strengths and limitations
+The study is population based and handles cross-referenced patient data from two large Scandinavian databases. It has a considerable population size and outcome data garnered from an extensive quality review process involving experts from each specialty involved in trauma care. Selection bias for the study in general is limited as the trauma population in our study matches the KUH trauma population. Bias in data handling, grouping and analyses is also limited as the associated methods were developed using artificial data and not changed post hoc. 
 
-For these results to be practically applicable at KUH trauma centre or any other institution, the isolated fact that errors exist is insufficient. To properly guide quality improvement work, it is imperative to learn what errors are made, which errors are most common and where the errors occur. In the study by Ghorbani et al, the four most common problem areas in the deceased trauma population was: inappropriate treatment (30,3%), delay to computer tomography (13.4%), procedural errors (11.9%) and delay to surgical intervention (10.4%). Our study found the most common reasons for erroneous care at KUH trauma centre in the overall trauma population to be improper resource management, emergency department mistriage, prolonged wait to necessary surgical intervention and a failure on the part of diagnosticians to identify every injury. Problem areas identified in both studies should provide the primary targets for future corrective interventions. 
+There are several limitations to this study. The method for patient selection to multidisciplinary morbidity and mortality review conferences relies on audit filters and nursing review. There is at present no consensus in the trauma literature as to which audit filters are effective[@CochraneAF]. Audit filters used at KUH have been chosen by an expert trauma committee consensus and may not accurately predict OFI. Consequently, there is a probability of selection bias as the choice of audit filters influences which patients are discussed. The same goes for selection via nursing review. Moreover, the limited number of patients in each cohort weakens the power of the logistic regression and the incidence trend analysis. 
 
-The trend analysis predicts negative trends for all cohorts and for the overall study population as well. Due to large swings in amplitude and few points of measurement, no statistically significant trend could be determined. The trends estimates are small, with confidence intervals spanning both positive and negative values and although they are suggestive of downtrends, the direction (positive or negative) of the trend cannot be accurately established. A statistically significant negative trend in incidence of OFI could go some distance towards validating the effectiveness of trauma quality improvement at KUH through multidisciplinary mortality and morbidity conferences.
+## Implications
+We have outlined the distribution of OFI across four trauma cohorts. This has clinical importance as it informs local quality improvement committees on where to focus their efforts. The main value of this article, however, is academic. Ours is the first study to examine rates of OFI within the general trauma population, as well as the first study to compare rates of OFI across clinically relevant subsets of the trauma population. 
 
-# Generalizability
-The study results are directly applicable to the trauma population at KUH trauma centre. The findings should also be valuable for other Scandinavian level-I trauma centres, as they are similar in many aspects, and care for populations with similar demographic characteristics and burden of disease as those cared for at KUH trauma centre. There are a multitude of differences however, one being the use of different audit filters to select patients for review, wherefore the study ought to be replicated at another institution prior to drawing strong conclusions. The problem areas here identified may also be hospital specific, although one might expect some congruence in terms of the distribution in cumulative incidence of OFI across trauma cohorts in trauma centres across Scandinavia. The external validity pertaining to international trauma centers is likely limited.
+## Generalisability 
+Among other things, the use of audit filters[@CochraneAF], the structure of morbidity and mortality reviews[@MMCandSelection] and the panorama of injury differs across institutions. Adding to the previous statement our limited patient sample renders our study low in external validity. We can not say with any certainty that our findings would be replicated had our study been conducted elsewhere.
 
-# Strenghts and limitations
-The study is population based and handles cross-referenced patient data from two large Scandinavian databases. It has a considerable population size and outcome data obtained from an extensive quality review process involving experts from each specialty involved in trauma care. As the study population and the KUH trauma population are the same, selection bias for the study overall is limited. Potential bias in data handling, grouping and analyses is  limited as well, as the associated  methods were developed using artificial data and not changed post hoc. 
+## Conclusion
+Cumulative incidence of OFI was unequally distributed among the trauma cohorts. Patients with severe blunt multisystem injuries without a severe traumatic brain injury had higher odds of experiencing OFI than patients in the other cohorts. Future studies should continue to supplement the thin literature on rates of OFI and hitherto non-existent literature on OFI distribution across the traumatic spectrum of injury. Moreover, they should seek to validate audit filters as an effective model for multidisciplinary morbidity and mortality review conference selection.
 
-There are several limitations to this study. There was considerable cohorts overlaps, and statistical analyses could as a result not be conducted across cohorts. The study is therefore mainly descriptive, with an impaired ability to draw strong conclusions regarding group differences. The method for patient selection to multidisciplinary mortality and morbidity review board meetings relies on audit filters. There is at present no consensus in the trauma literature as to which audit filters are effective: at KUH they are chosen, not by careful scientific scrutiny, but by consensus of an expert trauma committee. Consequently, there is a probability of selection bias as the choice of audit filters influences which patients are discussed. The high variance within cohorts in temporal incidence of OFI, limits the frequency of measurements and consequently weakens the power of the incidence trend analysis as a result. A longer study period would allow for a greater number of participants and a greater number of measurements, which in turn should garner more significant results.
-
-The assignment of OFI is dependent on the review process and temporal incidence of OFI can therefore be affected by factors that impact the frequency of review, e.g. a move to new premises. OFI in care provided is more likely to be found in patients with outcomes severe enough to draw attention or trigger audit filters, errors in care with less severe outcomes are likely to be overlooked. As such, it cannot be claimed that OFI is a true measure for quality of care, but rather a measure for the number of severely injured patients, whom have errors in care and severe outcomes. As the average injury severity varies across cohorts, that introduces another source of bias: cohorts with a higher average injury severity should have a higher incidence of OFI. It can be argued, however, that it is for severe patient cases with severe outcomes, that the measure exerts its principal relevance, and that it does not matter much if errors in less severe cases are tossed aside: those are not the errors that matter.
-
-# Future Studies
-Future studies should seek to validate or disqualify the audit filters used at KUH trauma centre. The value of audit filters is as a predictor for OFI. A study with a large multiple logistic regression analysis to establish factors associated, and independently associated with OFI would therefore be of great value. To improve and solidify audit filters is to further automate and streamline patient selection for quality improvement work, which in turn reduces resources and efforts invested and ensures a well-functioning review process. Moreover, future studies should seek to estimate the incidence of OFI within different parts of the trauma population at KUH and other level one trauma centres. They should have a longer study period with a greater number of participants, a greater number of cohorts and include variables such as sex and age in the analyses. Lastly, they should seek to stratify the in-group incidence of OFI into the proportion of their respective problem areas to further guide future quality improvement work.
-
-#Funding
-
-#Contributions
-
-
+# References
