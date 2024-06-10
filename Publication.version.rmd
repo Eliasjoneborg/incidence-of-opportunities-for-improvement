@@ -16,8 +16,6 @@ header-includes:
 ```{r setup, include=FALSE }
 #Necessary packages
 
-library(rofi)
-
 library(dplyr)
 library(plyr)
 library(incidence)
@@ -34,6 +32,7 @@ library(grid)
 library(glue)
 library(gtsummary)
 library(flextable)
+library(tidyverse)
 
 
 library("keyring")
@@ -42,89 +41,64 @@ library("RMariaDB")
 library("readr")
 library(dotenv)
 library(devtools)
+library(rofi)
 
-conn <- DBI::dbConnect(drv = RMariaDB::MariaDB(),
-                       user = "eliasj",
-                      password = Sys.getenv("DB_PASSWORD"),
-                      db = "opportunities_for_improvement")
+data <- import_data()
 
-dataset.names <- setNames(nm = c("swetrau", "fmp", "atgarder", "problem", "kvalgranskning2014.2017"))
-
-
-datasets <- lapply(dataset.names, function(dataset.name) dbReadTable(conn = conn, name = dataset.name))
-
-attach(datasets)
+attach(data)
 
 swetrau$arrival <- as.POSIXct(strptime(swetrau$DateTime_ArrivalAtHospital, format = "%Y-%m-%d %H:%M"))
+swetrau.20210602.20230228$arrival <- as.POSIXct(strptime(swetrau.20210602.20230228$DateTime_ArrivalAtHospital, format = "%Y-%m-%d %H:%M"))
 fmp$arrival <- as.POSIXct(strptime(fmp$Ankomst_te, format = "%Y%m%d %H:%M"))
+fmp.20210602.20230228$arrival <- as.POSIXct(strptime(fmp.20210602.20230228$Ankomst_te, format = "%Y%m%d %H:%M"))
 problem$arrival <- as.POSIXct(strptime(problem$Ankomst_te, format = "%Y%m%d %H:%M"))
 swetrau$id <- paste(swetrau$arrival, swetrau$PersonIdentity, swetrau$TempIdentity)
+swetrau.20210602.20230228$id <- paste(swetrau.20210602.20230228$arrival, swetrau.20210602.20230228$PersonIdentity, swetrau.20210602.20230228$TempIdentity)
 fmp$id <- paste(fmp$arrival, fmp$Personnummer, fmp$Reservnummer)
+fmp.20210602.20230228$id <- paste(fmp.20210602.20230228$arrival, fmp.20210602.20230228$Personnummer, fmp.20210602.20230228$Reservnummer)
 problem$id <- paste(problem$arrival, problem$Personnummer, problem$Reservnummer)
 
-## Combine datasets
-combined.datasets <- merge(fmp, problem, by = "id", all.x = TRUE)
-combined.datasets <- merge(combined.datasets, swetrau, by = "id", all.x = TRUE)
-detach(datasets)
-all_patients <-combined.datasets
+## Combine relevant datasets
 
-combined.datasets <- filter(combined.datasets, as.Date(strptime(combined.datasets$Ankomst_te.x, format = "%Y%m%d %H:%M")) >="2017-01-01")
+swetrau.combined <- rbind(swetrau, swetrau.20210602.20230228)
+problem.combined <- merge(fmp.20210602.20230228, problem, by= "id", all.x = TRUE, all.y=TRUE)
 
-### Jonatans kod för flowchart:
-clean_audit_filters <- function(data) {
-  audit.filter <- c("VK_hlr_thorak","VK_sap_less90","VK_leverskada",
-                    "VK_gcs_less9_ej_intubTE","VK_mjaltskada","VK_mer_30min_DT",
-                    "VK_mass_transf","VK_mer_60min_interv","VK_iss_15_ej_iva",
-                    "VK_ej_trombrof_TBI_72h","VK_iss_15_ej_TE","VK_avslutad","VK_annat")
-  audit.filter2 <- c("VK_hlr_thorak","VK_sap_less90","VK_leverskada",
-                     "VK_gcs_less9_ej_intubTE","VK_mjaltskada","VK_mer_30min_DT",
-                     "VK_mass_transf","VK_mer_60min_interv","VK_iss_15_ej_iva",
-                     "VK_ej_trombrof_TBI_72h","VK_iss_15_ej_TE","VK_annat")
-  data[,audit.filter][data[,audit.filter] == "Ja"|
-                        data[,audit.filter] == "ja"] <- "Yes"
-  data[,audit.filter][data[,audit.filter] == "Nej"|
-                        data[,audit.filter] == "nej" |
-                        data[,audit.filter] == "nj\r\nNej" |
-                        data[,audit.filter] == "nj"] <- "No"
-  ##### Is nn = NA or No???
-  data[,audit.filter][data[,audit.filter] == "nn"] <- NA
-  ### Create reference vector to check for false inputs in the audit filters.
-  Levels.audit.filters <- unique(as.vector(as.matrix(data[,audit.filter])))
-  Levels.audit.filters <- Levels.audit.filters[!is.na(Levels.audit.filters)]
-  #####
-  ##.   SIC (!!!) The safety check is not compatible with a bootsrap, replications probably lack one of the original values.
-  ######
-  #original.levels.audit.filters <- sort(c("Yes", NA, "No"))
-  #if (!identical(Levels.audit.filters, original.levels.audit.filters))
-  #  stop ("Levels in Audit filters have changed")
-  #########
-  #  Convert NA:s in VK rows to No if VK_avslutad = Yes (To be able to calc false neg)
-  #########
-  data[, audit.filter2] <- lapply(data[, audit.filter2], function(column) {
-    column[is.na(column) & data$VK_avslutad == "Yes"] <- "Yes"
-    return (column)
-  })
-  return(data)
-}
+## Coalesce important columns turned .x and .y
 
-#combined.datasets <- dplyr::rename(combined.datasets, "Fr1-14" = Fr1.14)
+problem.combined <- problem.combined %>% mutate(Ankomst_te = coalesce(Ankomst_te.x, Ankomst_te.y))
+problem.combined <- problem.combined %>% mutate(Problemomrade_.FMP = coalesce(Problemomrade_.FMP.x, Problemomrade_.FMP.y))
 
-combined.datasets$OFI <- create_ofi(combined.datasets) 
-swetrau_problem_merged <- combined.datasets
+## Final merge
 
-swetrau_problem_merged$OFI <- with(swetrau_problem_merged, ifelse(is.na(OFI) | OFI == "No", "No", "Yes")) 
-known_problem_area <-swetrau_problem_merged[!is.na(swetrau_problem_merged$OFI),]
-#remove unknown problem area
+combined.swetrau.problem <- merge(swetrau.combined, problem.combined, by = "id", all.x = TRUE)
 
-dataset.clean.af <- clean_audit_filters(combined.datasets)
+## Create OFI
 
-age_over_14 <- filter(known_problem_area, pt_age_yrs>14)
-
-fewer_variables<-age_over_14 %>% select(id, inj_dominant, Problemomrade_.FMP, res_survival, pt_age_yrs, Gender, OFI, NISS, ed_gcs_sum, pre_intub_type, pre_sbp_value, pre_sbp_rtscat, ed_sbp_value, ed_sbp_rtscat, Ankomst_te.x, starts_with("AISCode"))
-#removing unnecessary variables
+combined.swetrau.problem$OFI <- create_ofi(combined.swetrau.problem) 
+combined.swetrau.problem$OFI <- with(combined.swetrau.problem, ifelse(is.na(combined.swetrau.problem$OFI), "No", combined.swetrau.problem$OFI))
 
 
-## Changing 999 to NA for grouping into cohorts
+## Filter out patients 2017 -
+
+combined.datasets <- filter(combined.swetrau.problem, as.Date(strptime(combined.swetrau.problem$Ankomst_te, format = "%Y%m%d %H:%M")) >="2017-01-01")
+
+## Creating a separate df for OFI=YES
+
+known_problem_area <-filter(combined.datasets, OFI == "Yes")
+
+## Exclude <14 years
+
+age_over_14 <- filter(combined.datasets, pt_age_yrs>14)
+
+## Drop NA in age column
+
+age_over_14 %>% drop_na(pt_age_yrs)
+
+## Remove unneccessary variables
+
+fewer_variables<-combined.datasets %>% select(id, inj_dominant, Problemomrade_.FMP, res_survival, pt_age_yrs, Gender, OFI, NISS, ed_gcs_sum, pre_intub_type, pre_sbp_value, pre_sbp_rtscat, ed_sbp_value, ed_sbp_rtscat, Ankomst_te.x, starts_with("AISCode"))
+
+## Change 999 to NA for grouping into cohorts
 
 fewer_variables$ed_sbp_value[fewer_variables$ed_sbp_value == 999] = NA
 fewer_variables$ed_sbp_rtscat[fewer_variables$ed_sbp_rtscat == 999] = NA
@@ -239,17 +213,23 @@ for (i in 1:nrow(known_dominant_injury_pen)) {
 
 
 #ISOLATED SEVERE TBI
+
+#returns true if body region == 1
+
 head_region <- function(code) {
   code <- code[!is.na(code)]
   region <- substr(as.character(code), 1, 1)
   is.element(region, 1)
 }
 
-#returns true if body region == 1
+#returns true if AIS severity is 3 or greater
+
 is_serious <- function(code) {
   severity <- substr(as.character(code), 8, 8)
   as.numeric(severity) >= 3  
 }
+
+#should return true if "is_serious" and "head_region" returns true
 
 has_a_serious_head_injury <- function(code) {
     code <- code[!is.na(code)]
@@ -257,7 +237,7 @@ has_a_serious_head_injury <- function(code) {
  head_region(code[serious_injury]) == TRUE 
 }
 
-#acts on vectors in "serious_injury", chooses those which have region == 1
+#acts on vectors in "serious_injury", chooses only those which have region == 1
 
 only_one_region <- function(code){
   number_of_regions(code) == 1
